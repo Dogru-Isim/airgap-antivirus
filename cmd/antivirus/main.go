@@ -1,21 +1,21 @@
 package main
 
 import (
-    "fmt"
-    "context"
-    "log"
-    "os"
-    "os/signal"
-    "github.com/Dogru-Isim/airgap-antivirus/internal/config"
-    "github.com/Dogru-Isim/airgap-antivirus/internal/monitoring"
+	"context"
+	"fmt"
+	"github.com/Dogru-Isim/airgap-antivirus/internal/config"
+	"github.com/Dogru-Isim/airgap-antivirus/internal/monitoring"
+	"log"
+	"os"
+	"os/signal"
 	"syscall"
 	"time"
 )
 
 func main() {
 	// Create a context that cancels on interrupt signals
-	ctx, stop := signal.NotifyContext(context.Background(), 
-		os.Interrupt,    // ^C
+	ctx, stop := signal.NotifyContext(context.Background(),
+		os.Interrupt, // ^C
 		syscall.SIGTERM,
 	)
 	defer stop()
@@ -56,4 +56,3 @@ func run(ctx context.Context) error {
 		}
 	}
 }
-

@@ -2,27 +2,27 @@ package monitoring
 
 import (
 	"fmt"
+	"github.com/shirou/gopsutil/cpu"
 	"sync"
 	"time"
-	"github.com/shirou/gopsutil/cpu"
 )
 
 type CpuMonitor struct {
-	LogicalCores  int
-	consumption   []float64
-	mu            sync.Mutex
-	windowSize    int
+	LogicalCores int
+	consumption  []float64
+	mu           sync.Mutex
+	windowSize   int
 }
 
 func NewCpu(windowSize int) (*CpuMonitor, error) {
 	c := &CpuMonitor{
 		windowSize: windowSize,
 	}
-	
+
 	if err := c.populate(); err != nil {
 		return nil, err
 	}
-	
+
 	return c, nil
 }
 
@@ -38,9 +38,9 @@ func (c *CpuMonitor) populate() error {
 func (c *CpuMonitor) RecordUsage(percentage float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.consumption = append(c.consumption, percentage)
-	
+
 	// Maintain rolling window
 	if len(c.consumption) > c.windowSize {
 		c.consumption = c.consumption[1:]
@@ -58,17 +58,16 @@ func (c *CpuMonitor) LogUsage() error {
 	if err != nil {
 		return err
 	}
-	
+
 	if len(percentage) == 0 {
 		return fmt.Errorf("no cpu data available")
 	}
-	
+
 	c.RecordUsage(percentage[0])
-	
-	fmt.Printf("Current CPU: %.2f%%, Recent: %v\n", 
-		percentage[0], 
+
+	fmt.Printf("Current CPU: %.2f%%, Recent: %v\n",
+		percentage[0],
 		c.GetRecentUsage())
-	
+
 	return nil
 }
-

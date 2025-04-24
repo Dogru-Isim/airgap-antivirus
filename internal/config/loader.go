@@ -29,4 +29,3 @@ func Load() (*AppConfig, error) {
 
 	return &cfg, nil
 }
-
