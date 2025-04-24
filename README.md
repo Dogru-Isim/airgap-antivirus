@@ -29,7 +29,7 @@ This project aims to provide security for air-gapped systems by monitoring and p
 The sofware-based solution can be anything that does not rely on hardware capabilities as this project is created to overcome those restrictions. Some of these restrictions are:
 
 - SDRs (used for monitoring frequencies) that scan frequency ranges can be bypassed as they are not fast enough to pick up on suspicious activity on each frequency. (look: NoiseHopper)
-- They cost sweet-sweet money (faraday cages, unidirectional data diodes)
+- They cost sweet-sweet money. (faraday cages, unidirectional data diodes)
 
 Currently, we only have an antivirus product under cmd/antivirus/. This product aims to rely on behavior based detection such as suspicious memory consumption and suspicious cache misses
 rather than static analysis such as malware signatures.
