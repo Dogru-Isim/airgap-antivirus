@@ -18,7 +18,7 @@ This project aims to provide security for air-gapped systems by monitoring and p
 ### Build from Source
 - Download the source code and navigate to `cmd/`
 - Download `make` (we're looking for a way to make the compilation not dependant on make which is a GNU project (linux stuff))
-- You should see a file called `makefile`, if you can't see it, make sure that you are in the right directory and that the file is not moved somewhere else
+- You should see a file called `makefile`, if you can't see it, make sure that you are in the right directory and that the file is not moved somewhere else.
 - Run `make build` to build for your OS, run `make build-all` to compile for Linux, Darwin, and Windows.
 
 
