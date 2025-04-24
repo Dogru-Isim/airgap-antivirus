@@ -13,7 +13,11 @@ type AppConfig struct {
 }
 
 func Load() (*AppConfig, error) {
-	data, err := os.ReadFile(filepath.Join("../../configs", "/config.yaml"))
+	executableLocation, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("executable source directory read error: %w", err)
+	}
+	data, err := os.ReadFile(filepath.Join(executableLocation, "../../../configs/config.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("config read error: %w", err)
 	}
@@ -25,3 +29,4 @@ func Load() (*AppConfig, error) {
 
 	return &cfg, nil
 }
+

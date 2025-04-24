@@ -2,53 +2,73 @@ package monitoring
 
 import (
 	"fmt"
+	"sync"
 	"time"
-
 	"github.com/shirou/gopsutil/cpu"
 )
 
-// Cpu represents CPU information
-type Cpu struct {
-	LogicalCores int
-	cpuInfo      []cpu.InfoStat // Added to store CPU info
+type CpuMonitor struct {
+	LogicalCores  int
+	consumption   []float64
+	mu            sync.Mutex
+	windowSize    int
 }
 
-// GetUsagePercentage returns the current CPU usage
-func (c *Cpu) GetUsagePercentage() (float64, error) {
-	percentages, err := cpu.Percent(1*time.Second, false)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get CPU usage: %w", err)
+func NewCpu(windowSize int) (*CpuMonitor, error) {
+	c := &CpuMonitor{
+		windowSize: windowSize,
 	}
-
-	if len(percentages) == 0 {
-		return 0, fmt.Errorf("no CPU usage data available")
-	}
-
-	return percentages[0], nil
-}
-
-// NewCpu creates and initializes a new Cpu instance
-func NewCpu() (*Cpu, error) {
-	c := &Cpu{}
-	if err := c._populate(); err != nil {
+	
+	if err := c.populate(); err != nil {
 		return nil, err
 	}
+	
 	return c, nil
 }
 
-// Populate gathers CPU information
-func (c *Cpu) _populate() error {
+func (c *CpuMonitor) populate() error {
 	cores, err := cpu.Counts(true)
 	if err != nil {
-		return fmt.Errorf("failed to get CPU cores: %w", err)
+		return fmt.Errorf("cpu cores: %w", err)
 	}
 	c.LogicalCores = cores
-
-	info, err := cpu.Info()
-	if err != nil {
-		return fmt.Errorf("failed to get CPU info: %w", err)
-	}
-	c.cpuInfo = info
-
 	return nil
 }
+
+func (c *CpuMonitor) RecordUsage(percentage float64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	
+	c.consumption = append(c.consumption, percentage)
+	
+	// Maintain rolling window
+	if len(c.consumption) > c.windowSize {
+		c.consumption = c.consumption[1:]
+	}
+}
+
+func (c *CpuMonitor) GetRecentUsage() []float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]float64(nil), c.consumption...)
+}
+
+func (c *CpuMonitor) LogUsage() error {
+	percentage, err := cpu.Percent(1*time.Second, false)
+	if err != nil {
+		return err
+	}
+	
+	if len(percentage) == 0 {
+		return fmt.Errorf("no cpu data available")
+	}
+	
+	c.RecordUsage(percentage[0])
+	
+	fmt.Printf("Current CPU: %.2f%%, Recent: %v\n", 
+		percentage[0], 
+		c.GetRecentUsage())
+	
+	return nil
+}
+

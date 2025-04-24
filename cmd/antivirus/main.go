@@ -27,7 +27,6 @@ func main() {
 	log.Println("Shutdown complete")
 }
 
-// run contains the main application logic
 func run(ctx context.Context) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -36,12 +35,11 @@ func run(ctx context.Context) error {
 
 	log.Printf("Version: %s", cfg.Version)
 
-	cpu, err := monitoring.NewCpu()
+	cpu, err := monitoring.NewCpu(5) // Window size
 	if err != nil {
 		return fmt.Errorf("cpu monitoring init failed: %w", err)
 	}
 
-	// Create a ticker for periodic updates (e.g., every second)
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -51,13 +49,10 @@ func run(ctx context.Context) error {
 			log.Println("Shutting down gracefully")
 			return nil
 		case <-ticker.C:
-			cpuPercentage, err := cpu.GetUsagePercentage()
-			if err != nil {
-				return fmt.Errorf("failed to read cpu load: %w", err)
+			if err := cpu.LogUsage(); err != nil {
+				return fmt.Errorf("cpu monitoring error: %w", err)
 			}
-
 			log.Printf("Number of cores: %d", cpu.LogicalCores)
-			log.Printf("Cpu usage: %.2f%%", cpuPercentage)
 		}
 	}
 }
