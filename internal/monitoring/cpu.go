@@ -8,22 +8,30 @@ import (
 )
 
 type CpuMonitor struct {
-	LogicalCores int
+	//deviceCpu   cpu.InfoStat
+	logicalCores int
 	consumption  []float64
 	mu           sync.Mutex
 	windowSize   int
 }
 
-func NewCpu(windowSize int) (*CpuMonitor, error) {
-	c := &CpuMonitor{
+// Getter for logicalCores
+func (c *CpuMonitor) LogicalCores() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.logicalCores
+}
+
+func NewCpuMonitor(windowSize int) (*CpuMonitor, error) {
+	cpuMonitor := &CpuMonitor{
 		windowSize: windowSize,
 	}
 
-	if err := c.populate(); err != nil {
+	if err := cpuMonitor.populate(); err != nil {
 		return nil, err
 	}
 
-	return c, nil
+	return cpuMonitor, nil
 }
 
 func (c *CpuMonitor) populate() error {
@@ -31,7 +39,7 @@ func (c *CpuMonitor) populate() error {
 	if err != nil {
 		return fmt.Errorf("cpu cores: %w", err)
 	}
-	c.LogicalCores = cores
+	c.logicalCores = cores
 	return nil
 }
 
