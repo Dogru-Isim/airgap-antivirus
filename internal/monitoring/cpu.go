@@ -88,7 +88,7 @@ func (s *SystemCPUInfo) GetInfo() (StaticCPUInfo, error) {
 // ==================== CPU Metrics ====================
 type CPUMetrics struct {
 	mu          sync.Mutex
-	consumption []float64
+	consumption [][]float64 // [[core1_con, core2_con...], [core1_con, core2_con...]]
 	windowSize  int
 }
 
@@ -102,7 +102,7 @@ func NewCPUMetrics(windowSize int) (*CPUMetrics, error) {
 	}, nil
 }
 
-func (m *CPUMetrics) Record(usage float64) {
+func (m *CPUMetrics) Record(usage []float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -112,7 +112,7 @@ func (m *CPUMetrics) Record(usage float64) {
 	}
 }
 
-func (m *CPUMetrics) Recent(n int) []float64 {
+func (m *CPUMetrics) Recent(n int) [][]float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -122,7 +122,7 @@ func (m *CPUMetrics) Recent(n int) []float64 {
 
 	// Return a copy of the last n elements
 	start := len(m.consumption) - n
-	return append([]float64(nil), m.consumption[start:]...)
+	return append([][]float64(nil), m.consumption[start:]...)
 }
 
 // ==================== CPU Monitor ====================
@@ -177,7 +177,7 @@ func (m *CPUMonitor) GetCPUInfo() (StaticCPUInfo, error) {
 }
 
 func (m *CPUMonitor) CollectMetrics() error {
-	percentages, err := cpu.Percent(m.Interval, false)
+	percentages, err := cpu.Percent(m.Interval, true)
 	if err != nil {
 		return fmt.Errorf("failed to get CPU usage: %w", err)
 	}
@@ -185,10 +185,14 @@ func (m *CPUMonitor) CollectMetrics() error {
 		return fmt.Errorf("no CPU usage data available")
 	}
 
-	m.metrics.Record(percentages[0])
-	m.logger("Current CPU: %.2f%%, Recent: %v\n",
-		percentages[0],
-		m.metrics.Recent(5))
+	m.metrics.Record(percentages)
+	currentMetrics := formatCoreMetrics(percentages) // Assuming percentages is [][]float64
+	historical := formatHistorical(m.metrics.Recent(5))
+
+	fmt.Printf("Current CPU metrics:\n%s\n%s\n",
+		currentMetrics,
+		historical)
 
 	return nil
+
 }
