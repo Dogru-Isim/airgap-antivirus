@@ -53,14 +53,16 @@ func run(ctx context.Context) error {
 			log.Println("Shutting down gracefully")
 			return nil
 		case <-ticker.C:
+			cpuInfo, err := cpuMonitor.GetCPUInfo()
+			cpuMonitor.Sync.Do(func() {
+				log.Printf("Number of logical cores: %d", cpuInfo.LogicalCores)
+			})
 			if err := cpuMonitor.CollectMetrics(); err != nil {
 				return fmt.Errorf("cpu monitoring error: %w", err)
 			}
-			cpuInfo, err := cpuMonitor.GetCPUInfo()
 			if err != nil {
 				return fmt.Errorf("cpu monitoring error: %w", err)
 			}
-			log.Printf("Number of cores: %d", cpuInfo.LogicalCores)
 		}
 	}
 }
