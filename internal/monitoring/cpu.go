@@ -1,67 +1,95 @@
 package monitoring
 
 import (
+	"errors"
 	"fmt"
 	"github.com/shirou/gopsutil/cpu"
 	"sync"
 	"time"
 )
 
-type CpuMonitor struct {
-	//deviceCpu   cpu.InfoStat
+//===============================================================//
+
+type ICpuStaticInfoProvider interface {
+	GetGeneralInfo() []cpu.InfoStat
+	GetLogicalCores() int
+}
+
+type CpuStaticInfoProvider struct {
+	generalInfo  []cpu.InfoStat
 	logicalCores int
-	consumption  []float64
-	mu           sync.Mutex
-	windowSize   int
 }
 
-// Getter for logicalCores
-func (c *CpuMonitor) LogicalCores() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.logicalCores
+func NewCpuStaticInfoProvider() (*CpuStaticInfoProvider, error) {
+	cpuInfo, err := cpu.Info()
+	if err != nil {
+		return nil, fmt.Errorf("read cpu stats error: %w", err)
+	}
+
+	logicalCoresNum, err := cpu.Counts(true)
+	if err != nil {
+		return nil, fmt.Errorf("read cpu stats error: %w", err)
+	}
+
+	staticInfoProvider := &CpuStaticInfoProvider{
+		generalInfo:  cpuInfo,
+		logicalCores: logicalCoresNum,
+	}
+
+	return staticInfoProvider, nil
 }
 
-func NewCpuMonitor(windowSize int) (*CpuMonitor, error) {
-	cpuMonitor := &CpuMonitor{
+func (csip CpuStaticInfoProvider) GetGeneralInfo() []cpu.InfoStat {
+	return csip.generalInfo
+
+}
+
+func (csip CpuStaticInfoProvider) GetLogicalCores() int {
+	return csip.logicalCores
+}
+
+//=========================================================================//
+
+type ICpuMetricsProvider interface {
+	LogUsage() error
+	getRecentUsage() []float64
+	recordUsage(percentage float64)
+}
+
+type CpuMetricsProvider struct {
+	mutex       sync.Mutex
+	windowSize  int
+	consumption []float64
+}
+
+func NewCpuMetricsProvider(windowSize int) (*CpuMetricsProvider, error) {
+	metricsProvider := &CpuMetricsProvider{
 		windowSize: windowSize,
 	}
 
-	if err := cpuMonitor.populate(); err != nil {
-		return nil, err
+	if windowSize < 1 {
+		return nil, errors.New("window size cannot be less than 1")
 	}
 
-	return cpuMonitor, nil
+	return metricsProvider, nil
 }
 
-func (c *CpuMonitor) populate() error {
-	cores, err := cpu.Counts(true)
-	if err != nil {
-		return fmt.Errorf("cpu cores: %w", err)
-	}
-	c.logicalCores = cores
-	return nil
-}
-
-func (c *CpuMonitor) RecordUsage(percentage float64) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.consumption = append(c.consumption, percentage)
+func (metricsProvider *CpuMetricsProvider) recordUsage(percentage float64) {
+	metricsProvider.consumption = append(metricsProvider.consumption, percentage)
 
 	// Maintain rolling window
-	if len(c.consumption) > c.windowSize {
-		c.consumption = c.consumption[1:]
+	if len(metricsProvider.consumption) > metricsProvider.windowSize {
+		metricsProvider.consumption = metricsProvider.consumption[1:]
 	}
 }
 
-func (c *CpuMonitor) GetRecentUsage() []float64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return append([]float64(nil), c.consumption...)
+func (metricsProvider *CpuMetricsProvider) getRecentUsage() []float64 {
+	return append([]float64(nil), metricsProvider.consumption...)
 }
 
-func (c *CpuMonitor) LogUsage() error {
+func (metricsProvider *CpuMetricsProvider) LogUsage() error {
+	metricsProvider.mutex.Lock()
+	defer metricsProvider.mutex.Unlock()
 	percentage, err := cpu.Percent(1*time.Second, false)
 	if err != nil {
 		return err
@@ -71,11 +99,37 @@ func (c *CpuMonitor) LogUsage() error {
 		return fmt.Errorf("no cpu data available")
 	}
 
-	c.RecordUsage(percentage[0])
+	metricsProvider.recordUsage(percentage[0])
 
 	fmt.Printf("Current CPU: %.2f%%, Recent: %v\n",
 		percentage[0],
-		c.GetRecentUsage())
+		metricsProvider.getRecentUsage())
 
 	return nil
+}
+
+//=========================================================================//
+
+type CpuMonitor struct {
+	CpuStaticInfoProvider ICpuStaticInfoProvider
+	CpuMetricsProvider    ICpuMetricsProvider
+}
+
+func NewCpuMonitor(windowSize int) (*CpuMonitor, error) {
+	staticInfoProvider, err := NewCpuStaticInfoProvider()
+	if err != nil {
+		return nil, fmt.Errorf("error: %w", err)
+	}
+
+	metricsProvider, err := NewCpuMetricsProvider(windowSize)
+	if err != nil {
+		return nil, fmt.Errorf("error: %w", err)
+	}
+
+	cpuMonitor := &CpuMonitor{
+		CpuStaticInfoProvider: staticInfoProvider,
+		CpuMetricsProvider:    metricsProvider,
+	}
+
+	return cpuMonitor, nil
 }
