@@ -17,7 +17,7 @@ all: build
 
 .PHONY: run
 run: ## Run the application
-	@go run ./$(BINARY_NAME)
+	@go build $(GO_BUILD_FLAGS) -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME) ./$(BINARY_NAME) && $(BUILD_DIR)/$(BINARY_NAME)
 
 .PHONY: debug
 debug: ## Debug the application with Delve
