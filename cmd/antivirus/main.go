@@ -37,12 +37,13 @@ func run(ctx context.Context) error {
 
 	cpuMonitor, err := monitoring.NewCPUMonitor(
 		5,                                      // windowSize
-		monitoring.WithInterval(5*time.Second), // interval
+		monitoring.WithInterval(1*time.Second), // interval
 	)
 	if err != nil {
 		return fmt.Errorf("cpu monitoring init failed: %w", err)
 	}
 
+	// TODO: Move this functionality info CPUMonitor.Start()
 	ticker := time.NewTicker(cpuMonitor.Interval)
 	defer ticker.Stop()
 
