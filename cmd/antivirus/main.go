@@ -35,7 +35,7 @@ func run(ctx context.Context) error {
 
 	log.Printf("Version: %s", cfg.Version)
 
-	cpu, err := monitoring.NewCpuMonitor(5) // Window size
+	cpuMonitor, err := monitoring.NewCpuMonitor(5) // Window size
 	if err != nil {
 		return fmt.Errorf("cpu monitoring init failed: %w", err)
 	}
@@ -49,10 +49,10 @@ func run(ctx context.Context) error {
 			log.Println("Shutting down gracefully")
 			return nil
 		case <-ticker.C:
-			if err := cpu.LogUsage(); err != nil {
+			if err := cpuMonitor.CpuMetricsProvider.LogUsage(); err != nil {
 				return fmt.Errorf("cpu monitoring error: %w", err)
 			}
-			log.Printf("Number of cores: %d", cpu.LogicalCores())
+			log.Printf("Number of cores: %d", cpuMonitor.CpuStaticInfoProvider.GetLogicalCores())
 		}
 	}
 }
