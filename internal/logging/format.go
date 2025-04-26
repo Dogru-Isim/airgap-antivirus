@@ -1,4 +1,4 @@
-package monitoring
+package logging
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ func formatCoreMetrics(percentages []float64) string {
 	for i, pct := range percentages {
 		builder.WriteString(fmt.Sprintf("Core%d: %5.1f%%  ", i+1, pct))
 	}
-	return builder.String()
+	return builder.String() + "\n"
 }
 
 // formatHistorical formats historical data in columns

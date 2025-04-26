@@ -2,6 +2,7 @@ package monitoring
 
 import (
 	"fmt"
+	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
 	"github.com/shirou/gopsutil/cpu"
 	"sync"
 	"time"
@@ -104,13 +105,15 @@ type CPUMonitor struct {
 	infoProvider CPUInfoProvider
 	metrics      *CPUMetrics
 	Interval     time.Duration
-	logger       func(format string, args ...any) (int, error)
-	Sync         sync.Once
+	//logger       func(format string, args ...any) (int, error)
+	logger *logging.CPULogger
+	Sync   sync.Once
 }
 
 type CPUMonitorOption func(*CPUMonitor)
 
-func WithLogger(logger func(string, ...any) (int, error)) CPUMonitorOption {
+// func WithLogger(logger func(string, ...any) (int, error)) CPUMonitorOption {
+func WithLogger(logger *logging.CPULogger) CPUMonitorOption {
 	return func(m *CPUMonitor) {
 		m.logger = logger
 	}
@@ -134,10 +137,15 @@ func NewCPUMonitor(windowSize int, opts ...CPUMonitorOption) (*CPUMonitor, error
 		return nil, fmt.Errorf("failed to create metrics: %w", err)
 	}
 
+	logger, err := logging.NewCPULogger()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CPU logger: %w", err)
+	}
+
 	monitor := &CPUMonitor{
 		infoProvider: &SystemCPUInfo{},
 		metrics:      metrics,
-		logger:       fmt.Printf, // Default to fmt.Printf
+		logger:       logger, // Default to fmt.Printf
 	}
 
 	for _, opt := range opts {
@@ -161,12 +169,16 @@ func (m *CPUMonitor) CollectMetrics() error {
 	}
 
 	m.metrics.Record(percentages)
-	currentMetrics := formatCoreMetrics(percentages) // Assuming percentages is [][]float64
-	historical := formatHistorical(m.metrics.Recent(5))
 
-	fmt.Printf("Current CPU metrics:\n%s\n%s\n",
-		currentMetrics,
-		historical)
+	m.logger.Log(percentages)
+	/*
+		currentMetrics := formatCoreMetrics(percentages) // Assuming percentages is [][]float64
+		historical := formatHistorical(m.metrics.Recent(5))
+
+		fmt.Printf("Current CPU metrics:\n%s\n%s\n",
+			currentMetrics,
+			historical)
+	*/
 
 	return nil
 
