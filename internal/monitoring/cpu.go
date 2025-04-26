@@ -57,32 +57,6 @@ func (s *SystemCPUInfo) GetInfo() (StaticCPUInfo, error) {
 	})
 
 	return s.info, s.initErr
-
-	/*
-		info, err := cpu.Info()
-		if err != nil {
-			return StaticCPUInfo{}, fmt.Errorf("failed to get CPU info: %w", err)
-		}
-		if len(info) == 0 {
-			return StaticCPUInfo{}, fmt.Errorf("no CPU info available")
-		}
-
-		logical, err := cpu.Counts(true)
-		if err != nil {
-			return StaticCPUInfo{}, fmt.Errorf("failed to get logical cores: %w", err)
-		}
-
-		physical, err := cpu.Counts(false)
-		if err != nil {
-			return StaticCPUInfo{}, fmt.Errorf("failed to get physical cores: %w", err)
-		}
-
-		return StaticCPUInfo{
-			ModelName:     info[0].ModelName,
-			LogicalCores:  logical,
-			PhysicalCores: physical,
-		}, nil
-	*/
 }
 
 // ==================== CPU Metrics ====================
