@@ -64,15 +64,6 @@ func NewPrettyCPULogger(opts ...PrettyCPULoggerOption) (*PrettyCPULogger, error)
 }
 
 func (cpuLogger *PrettyCPULogger) LogCPULoadPercentage(percentages []float64) error {
-	/*
-		currentMetrics := formatCoreMetrics(percentages) // Assuming percentages is [][]float64
-		historical := formatHistorical(m.metrics.Recent(5))
-
-		fmt.Printf("Current CPU metrics:\n%s\n%s\n",
-			currentMetrics,
-			historical)
-	*/
-
 	currentMetrics := formatCoreMetrics(percentages)
 	cpuLogger.logger.Writer().Write([]byte(currentMetrics))
 
@@ -114,15 +105,6 @@ func NewJsonCPULogger(opts ...JsonCPULoggerOption) (*JsonCPULogger, error) {
 }
 
 func (cpuLogger *JsonCPULogger) LogCPULoadPercentage(percentages []float64) error {
-	/*
-		currentMetrics := formatCoreMetrics(percentages) // Assuming percentages is [][]float64
-		historical := formatHistorical(m.metrics.Recent(5))
-
-		fmt.Printf("Current CPU metrics:\n%s\n%s\n",
-			currentMetrics,
-			historical)
-	*/
-
 	cpuLogger.logger.Info("CPU metrics",
 		"cores", percentages,
 	)
