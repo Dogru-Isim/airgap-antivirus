@@ -5,26 +5,26 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 )
 
 //============================  Logger  ============================//
 
-type Logger interface {
-	LogPretty(writer io.Writer, log any) error // Log in a format pleasing to the human eye
-	//LogJson(writer io.Writer, log any) error // Log in JSON format
+type CPULogger interface {
+	LogCPULoadPercentage(log []float64) error
 }
 
-//============================ CpuLogger ============================//
+//============================ PrettyCpuLogger ============================//
 
-type CPULogger struct {
+type PrettyCPULogger struct {
 	logger *log.Logger
 }
 
-type CPULoggerOption func(*CPULogger) error
+type PrettyCPULoggerOption func(*PrettyCPULogger) error
 
-func WithOutput(w io.Writer) CPULoggerOption {
-	return func(cl *CPULogger) error {
+func WithOutput(w io.Writer) PrettyCPULoggerOption {
+	return func(cl *PrettyCPULogger) error {
 		if w == nil {
 			return errors.New("writer cannot be nil")
 		}
@@ -33,23 +33,23 @@ func WithOutput(w io.Writer) CPULoggerOption {
 	}
 }
 
-func WithPrefix(prefix string) CPULoggerOption {
-	return func(cl *CPULogger) error {
+func WithPrefix(prefix string) PrettyCPULoggerOption {
+	return func(cl *PrettyCPULogger) error {
 		cl.logger.SetPrefix(prefix)
 		return nil
 	}
 }
 
-func WithFlags(flags int) CPULoggerOption {
-	return func(cl *CPULogger) error {
+func WithFlags(flags int) PrettyCPULoggerOption {
+	return func(cl *PrettyCPULogger) error {
 		cl.logger.SetFlags(flags)
 		return nil
 	}
 }
 
-func NewCPULogger(opts ...CPULoggerOption) (*CPULogger, error) {
+func NewPrettyCPULogger(opts ...PrettyCPULoggerOption) (*PrettyCPULogger, error) {
 	// Initialize with defaults
-	cpuLogger := &CPULogger{
+	cpuLogger := &PrettyCPULogger{
 		logger: log.New(os.Stdout, "", log.LstdFlags),
 	}
 
@@ -63,7 +63,7 @@ func NewCPULogger(opts ...CPULoggerOption) (*CPULogger, error) {
 	return cpuLogger, nil
 }
 
-func (cpuLogger *CPULogger) Log(percentages []float64) error {
+func (cpuLogger *PrettyCPULogger) LogCPULoadPercentage(percentages []float64) error {
 	/*
 		currentMetrics := formatCoreMetrics(percentages) // Assuming percentages is [][]float64
 		historical := formatHistorical(m.metrics.Recent(5))
@@ -75,6 +75,57 @@ func (cpuLogger *CPULogger) Log(percentages []float64) error {
 
 	currentMetrics := formatCoreMetrics(percentages)
 	cpuLogger.logger.Writer().Write([]byte(currentMetrics))
+
+	return nil
+}
+
+//============================ JsonCpuLogger ============================//
+
+type JsonCPULogger struct {
+	logger *slog.Logger
+}
+
+type JsonCPULoggerOption func() (*slog.Logger, error)
+
+func WithOutputJson(w io.Writer) JsonCPULoggerOption {
+	return func() (*slog.Logger, error) {
+		if w == nil {
+			return slog.New(slog.NewJSONHandler(w, nil)), errors.New("writer cannot be nil")
+		}
+		return slog.New(slog.NewJSONHandler(w, nil)), nil
+	}
+}
+
+func NewJsonCPULogger(opts ...JsonCPULoggerOption) (*JsonCPULogger, error) {
+	jsonCpuLogger := &JsonCPULogger{
+		slog.New(slog.NewJSONHandler(os.Stderr, nil)),
+	}
+	var err error
+
+	// Apply options
+	for _, opt := range opts {
+		jsonCpuLogger.logger, err = opt()
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply option: %w", err)
+		}
+	}
+
+	return jsonCpuLogger, nil
+}
+
+func (cpuLogger *JsonCPULogger) LogCPULoadPercentage(percentages []float64) error {
+	/*
+		currentMetrics := formatCoreMetrics(percentages) // Assuming percentages is [][]float64
+		historical := formatHistorical(m.metrics.Recent(5))
+
+		fmt.Printf("Current CPU metrics:\n%s\n%s\n",
+			currentMetrics,
+			historical)
+	*/
+
+	cpuLogger.logger.Info("CPU metrics",
+		"cores", percentages,
+	)
 
 	return nil
 }

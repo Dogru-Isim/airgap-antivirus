@@ -106,7 +106,7 @@ type CPUMonitor struct {
 	metrics      *CPUMetrics
 	Interval     time.Duration
 	//logger       func(format string, args ...any) (int, error)
-	logger *logging.CPULogger
+	logger logging.CPULogger //*logging.CPULogger
 	Sync   sync.Once
 }
 
@@ -115,10 +115,9 @@ type CPUMonitorOption func(*CPUMonitor)
 // func WithLogger(logger func(string, ...any) (int, error)) CPUMonitorOption {
 func WithLogger(logger *logging.CPULogger) CPUMonitorOption {
 	return func(m *CPUMonitor) {
-		m.logger = logger
+		m.logger = *logger
 	}
 }
-
 func WithInfoProvider(provider CPUInfoProvider) CPUMonitorOption {
 	return func(m *CPUMonitor) {
 		m.infoProvider = provider
@@ -137,7 +136,8 @@ func NewCPUMonitor(windowSize int, opts ...CPUMonitorOption) (*CPUMonitor, error
 		return nil, fmt.Errorf("failed to create metrics: %w", err)
 	}
 
-	logger, err := logging.NewCPULogger()
+	//logger, err := logging.NewPrettyCPULogger()
+	logger, err := logging.NewJsonCPULogger()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CPU logger: %w", err)
 	}
@@ -170,7 +170,7 @@ func (m *CPUMonitor) CollectMetrics() error {
 
 	m.metrics.Record(percentages)
 
-	m.logger.Log(percentages)
+	m.logger.LogCPULoadPercentage(percentages)
 	/*
 		currentMetrics := formatCoreMetrics(percentages) // Assuming percentages is [][]float64
 		historical := formatHistorical(m.metrics.Recent(5))
