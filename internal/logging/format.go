@@ -14,15 +14,6 @@ func formatCoreMetrics(percentages []float64) string {
 	return builder.String() + "\n"
 }
 
-// formatCoreMetrics formats per-core percentages with consistent width
-func formatCoreMetricsForJson(percentages []float64) string {
-	var builder strings.Builder
-	for i, pct := range percentages {
-		builder.WriteString(fmt.Sprintf("Core%d: %5.1f%%  ", i+1, pct))
-	}
-	return builder.String() + "\n"
-}
-
 /*
 // formatHistorical formats historical data in columns
 func formatHistorical(history [][]float64) string {

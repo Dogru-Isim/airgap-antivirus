@@ -105,9 +105,8 @@ type CPUMonitor struct {
 	infoProvider CPUInfoProvider
 	metrics      *CPUMetrics
 	Interval     time.Duration
-	//logger       func(format string, args ...any) (int, error)
-	logger logging.CPULogger //*logging.CPULogger
-	Sync   sync.Once
+	logger       logging.CPULogger //*logging.CPULogger
+	Sync         sync.Once
 }
 
 type CPUMonitorOption func(*CPUMonitor)
