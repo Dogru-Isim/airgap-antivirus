@@ -1,2 +1,2 @@
 version: 0.1.0
-cpu_logger: pre
+cpu_logger: pretty
