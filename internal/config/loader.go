@@ -2,14 +2,14 @@ package config
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
-
-	"gopkg.in/yaml.v3"
 )
 
 type AppConfig struct {
-	Version string `yaml:"version"`
+	Version   string `yaml:"version"`
+	CPULogger string `yaml:"cpu_logger"`
 }
 
 func Load() (*AppConfig, error) {
@@ -17,16 +17,16 @@ func Load() (*AppConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("executable source directory read error: %w", err)
 	}
-	data, err := os.ReadFile(filepath.Join(executableLocation, "../../../configs/config.yaml"))
+	appConfigData, err := os.ReadFile(filepath.Join(executableLocation, "../../../configs/config.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("config read error: %w", err)
 	}
 
-	var cfg AppConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	var appConfig AppConfig
+
+	if err := yaml.Unmarshal(appConfigData, &appConfig); err != nil {
 		return nil, fmt.Errorf("config parse error: %w", err)
 	}
 
-	return &cfg, nil
+	return &appConfig, nil
 }
-
