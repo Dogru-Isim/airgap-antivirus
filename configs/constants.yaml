@@ -1,8 +1,0 @@
-# This part defines which string in config.yamll correlates with which function
-
-# CPU Logger
-cpu_logger:
-  pretty: PrettyCPULogger  # the setting "pretty" correlates to the PrettyCPULogger function
-  json: JsonCPULogger      # the setting "json" correlates to the JsonCPULogger function
-
-

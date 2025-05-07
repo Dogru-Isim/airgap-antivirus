@@ -3,6 +3,7 @@ package logging
 import (
 	"errors"
 	"fmt"
+	"github.com/Dogru-Isim/airgap-antivirus/internal/config"
 	"io"
 	"log"
 	"log/slog"
@@ -13,6 +14,41 @@ import (
 
 type CPULogger interface {
 	LogCPULoadPercentage(log []float64) error
+}
+
+type CPULoggerFactory func(opts ...any) (CPULogger, error)
+
+func GetLoggerUsingConfig() (CPULogger, error) {
+	appConfig, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	var cpuLoggerFactories = map[string]CPULoggerFactory{
+		"json": func(opts ...any) (CPULogger, error) {
+			jsonOptions := make([]JsonCPULoggerOption, len(opts))
+			for i, opt := range opts {
+				jsonOptions[i], _ = opt.(JsonCPULoggerOption)
+			}
+			return NewJsonCPULogger(jsonOptions...)
+		},
+		"pretty": func(opts ...any) (CPULogger, error) {
+			prettyOptions := make([]PrettyCPULoggerOption, len(opts))
+			for i, opt := range opts {
+				prettyOptions[i], _ = opt.(PrettyCPULoggerOption)
+			}
+			return NewPrettyCPULogger(prettyOptions...)
+		},
+	}
+	factory, exists := cpuLoggerFactories[appConfig.CPULogger]
+	if !exists {
+		return nil, errors.New("unknown CPU logger type: " + appConfig.CPULogger)
+	}
+	cpuLogger, err := factory()
+	if err != nil {
+		return nil, errors.New("factory() failed in GetLoggerUsingConfig()")
+	}
+	return cpuLogger, nil
 }
 
 //============================ PrettyCpuLogger ============================//
