@@ -144,7 +144,7 @@ func NewCPUMonitor(windowSize int, opts ...CPUMonitorOption) (*CPUMonitor, error
 	monitor := &CPUMonitor{
 		infoProvider: &SystemCPUInfo{},
 		metrics:      metrics,
-		logger:       logger, // Default to fmt.Printf
+		logger:       logger,
 	}
 
 	for _, opt := range opts {
