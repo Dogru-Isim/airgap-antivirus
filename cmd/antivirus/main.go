@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Dogru-Isim/airgap-antivirus/internal/config"
+	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
 	"github.com/Dogru-Isim/airgap-antivirus/internal/monitoring"
 	"log"
 	"os"
@@ -38,6 +39,7 @@ func run(ctx context.Context) error {
 	cpuMonitor, err := monitoring.NewCPUMonitor(
 		5,                                      // windowSize
 		monitoring.WithInterval(1*time.Second), // interval
+		monitoring.WithLogger(logging.NewPrettyCPULogger()),
 	)
 	if err != nil {
 		return fmt.Errorf("cpu monitoring init failed: %w", err)
