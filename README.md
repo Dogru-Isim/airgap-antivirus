@@ -60,7 +60,7 @@ Again, theoretically the techniques that are used for preventing side-channel at
 - Any integration test is under cmd/<application_name>/<test_name>.go (e.g. cmd/antivirus/dashboard_test.go)
 
 #### Testing
-- Each module (file) in internal/<library_name> (business logic) should have unit tests that are meaningful and helpful for finding bugs.
+- Each module (file) in internal/<library_name> (business logic) should have unit tests that are meaningful and helpful for finding potential bugs.
 - Each application in cmd/<application_name> (entry points) should have integration tests that are meaningful and helpful for finding bugs.
 
 #### Configuration Settings
