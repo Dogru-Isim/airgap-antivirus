@@ -147,7 +147,6 @@ func NewCPUMonitor(windowSize int, opts ...CPUMonitorOption) (*CPUMonitor, error
 		return nil, fmt.Errorf("failed to create metrics: %w", err)
 	}
 
-	//logger, err := logging.NewPrettyCPULogger()
 	logger, err := logging.NewJsonCPULogger()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CPU logger: %w", err)
@@ -188,9 +187,11 @@ func (m *CPUMonitor) CollectMetrics() error {
 	// Log per core
 	m.logger.LogCPULoadPercentagePerCore(percentagesPerCore)
 
+	historical := logging.FormatHistorical(m.metrics.Recent(5))
+	fmt.Printf("%s\n", historical)
 	/*
-		currentMetrics := formatCoreMetrics(percentages) // Assuming percentages is [][]float64
-		historical := formatHistorical(m.metrics.Recent(5))
+		currentMetrics := logging.formatCoreMetrics(percentageAverage) // Assuming percentages is [][]float64
+		historical := logging.formatHistorical(m.metrics.Recent(5))
 
 		fmt.Printf("Current CPU metrics:\n%s\n%s\n",
 			currentMetrics,

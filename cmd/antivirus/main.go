@@ -29,10 +29,7 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	appConfig, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("config error: %w", err)
-	}
+	appConfig := config.Load()
 
 	log.Printf("Version: %s", appConfig.Version)
 
