@@ -1,2 +1,3 @@
 version: 0.1.0
 cpu_logger: pretty
+cpu_monitoring_interval: 500  # milliseconds

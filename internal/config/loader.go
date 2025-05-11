@@ -8,8 +8,9 @@ import (
 )
 
 type AppConfig struct {
-	Version   string `yaml:"version"`
-	CPULogger string `yaml:"cpu_logger"`
+	Version               string `yaml:"version"`
+	CPULogger             string `yaml:"cpu_logger"`
+	CPUMonitoringInterval int64  `yaml:"cpu_monitoring_interval"` // type is casted to time.Duration therefore it's stored as int64
 }
 
 func Load() (*AppConfig, error) {

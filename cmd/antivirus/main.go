@@ -41,8 +41,8 @@ func run(ctx context.Context) error {
 		log.Fatalf("logging.GetLoggerUsingConfig() failed: %s", err)
 	}
 	cpuMonitor, err := monitoring.NewCPUMonitor(
-		5,                                      // windowSize
-		monitoring.WithInterval(1*time.Second), // interval
+		5, // windowSize
+		monitoring.WithInterval(time.Duration(appConfig.CPUMonitoringInterval)*time.Millisecond), // interval
 		monitoring.WithLogger(&cpuLogger),
 	)
 	if err != nil {

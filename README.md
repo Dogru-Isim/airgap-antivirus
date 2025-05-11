@@ -2,7 +2,7 @@
 
 ## What?
 
-The software-based security solution is initially developed for a school project. That repo is currently private so this readme doesn't include a link.
+The software-based security solution is initially developed for a school project. That repo is currently private so this readme doesn't include a link to it.
 
 This project aims to provide security for air-gapped systems by monitoring and preventing activities that are suspicious in an air-gapped context. Examples:
 

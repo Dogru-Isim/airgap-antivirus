@@ -13,7 +13,8 @@ import (
 //============================  Logger  ============================//
 
 type CPULogger interface {
-	LogCPULoadPercentage(log []float64) error
+	LogCPULoadPercentageAverage(log []float64) error
+	LogCPULoadPercentagePerCore(log []float64) error
 }
 
 type CPULoggerFactory func(opts ...any) (CPULogger, error)
@@ -99,7 +100,13 @@ func NewPrettyCPULogger(opts ...PrettyCPULoggerOption) (*PrettyCPULogger, error)
 	return cpuLogger, nil
 }
 
-func (cpuLogger *PrettyCPULogger) LogCPULoadPercentage(percentages []float64) error {
+func (cpuLogger *PrettyCPULogger) LogCPULoadPercentageAverage(percentage []float64) error {
+	cpuLogger.logger.Writer().Write([]byte(fmt.Sprintf("[ Average CPU Load: %5.1f%% ] ", percentage[0])))
+
+	return nil
+}
+
+func (cpuLogger *PrettyCPULogger) LogCPULoadPercentagePerCore(percentages []float64) error {
 	currentMetrics := formatCoreMetrics(percentages)
 	cpuLogger.logger.Writer().Write([]byte(currentMetrics))
 
@@ -140,7 +147,15 @@ func NewJsonCPULogger(opts ...JsonCPULoggerOption) (*JsonCPULogger, error) {
 	return jsonCpuLogger, nil
 }
 
-func (cpuLogger *JsonCPULogger) LogCPULoadPercentage(percentages []float64) error {
+func (cpuLogger *JsonCPULogger) LogCPULoadPercentageAverage(percentage []float64) error {
+	cpuLogger.logger.Info("CPU metrics",
+		"average_load", percentage,
+	)
+
+	return nil
+}
+
+func (cpuLogger *JsonCPULogger) LogCPULoadPercentagePerCore(percentages []float64) error {
 	cpuLogger.logger.Info("CPU metrics",
 		"cores", percentages,
 	)
