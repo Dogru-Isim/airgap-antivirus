@@ -14,9 +14,8 @@ func formatCoreMetrics(percentages []float64) string {
 	return builder.String() + "\n"
 }
 
-/*
 // formatHistorical formats historical data in columns
-func formatHistorical(history [][]float64) string {
+func FormatHistorical(history [][]float64) string {
 	if len(history) == 0 {
 		return "No historical data"
 	}
@@ -41,7 +40,6 @@ func formatHistorical(history [][]float64) string {
 
 	return builder.String()
 }
-*/
 
 /*
 func formatVertical(history [][]float64) string {

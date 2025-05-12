@@ -8,22 +8,22 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"path/filepath"
 )
 
 //============================  Logger  ============================//
 
 type CPULogger interface {
-	LogCPULoadPercentage(log []float64) error
+	LogCPULoadPercentageAverage(log []float64) error
+	LogCPULoadPercentagePerCore(log []float64) error
 }
 
 type CPULoggerFactory func(opts ...any) (CPULogger, error)
 
 func GetLoggerUsingConfig() (CPULogger, error) {
-	appConfig, err := config.Load()
-	if err != nil {
-		return nil, err
-	}
+	appConfig := config.Load()
 
+	// Map of logger factory functions
 	var cpuLoggerFactories = map[string]CPULoggerFactory{
 		"json": func(opts ...any) (CPULogger, error) {
 			jsonOptions := make([]JsonCPULoggerOption, len(opts))
@@ -40,15 +40,38 @@ func GetLoggerUsingConfig() (CPULogger, error) {
 			return NewPrettyCPULogger(prettyOptions...)
 		},
 	}
+
+	// Select the logger type from config
 	factory, exists := cpuLoggerFactories[appConfig.CPULogger]
 	if !exists {
-		return nil, errors.New("unknown CPU logger type: " + appConfig.CPULogger)
+		return nil, fmt.Errorf("unknown CPU logger type: %s", appConfig.CPULogger)
 	}
-	cpuLogger, err := factory()
-	if err != nil {
-		return nil, errors.New("factory() failed in GetLoggerUsingConfig()")
+
+	// Build appropriate options based on logger type
+	var opts []any
+
+	switch appConfig.CPULogger {
+	case "json":
+		logOutput, err := os.OpenFile(filepath.Join(config.Load().ExecutableLocation, "../../../"+config.Load().LogPath+"cpu_load_json.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+		if err != nil {
+			return nil, fmt.Errorf("cannot open file %s: %w", config.Load().LogPath+"cpu_load_json.log", err)
+		}
+		opts = append(opts, WithOutputJson(logOutput))
+	case "pretty":
+		logOutput, err := os.OpenFile(filepath.Join(config.Load().ExecutableLocation, "../../../"+config.Load().LogPath+"cpu_load_pretty.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+		if err != nil {
+			return nil, fmt.Errorf("cannot open file %s: %w", config.Load().LogPath+"cpu_load_pretty.log", err)
+		}
+		opts = append(opts,
+			WithOutputPretty(logOutput),
+			WithPrefix("[CPU] "),
+			WithFlags(log.LstdFlags|log.Lshortfile),
+		)
+	default:
+		return nil, fmt.Errorf("unsupported logger type: %s", appConfig.CPULogger)
 	}
-	return cpuLogger, nil
+
+	return factory(opts...)
 }
 
 //============================ PrettyCpuLogger ============================//
@@ -59,7 +82,7 @@ type PrettyCPULogger struct {
 
 type PrettyCPULoggerOption func(*PrettyCPULogger) error
 
-func WithOutput(w io.Writer) PrettyCPULoggerOption {
+func WithOutputPretty(w io.Writer) PrettyCPULoggerOption {
 	return func(cl *PrettyCPULogger) error {
 		if w == nil {
 			return errors.New("writer cannot be nil")
@@ -99,7 +122,13 @@ func NewPrettyCPULogger(opts ...PrettyCPULoggerOption) (*PrettyCPULogger, error)
 	return cpuLogger, nil
 }
 
-func (cpuLogger *PrettyCPULogger) LogCPULoadPercentage(percentages []float64) error {
+func (cpuLogger *PrettyCPULogger) LogCPULoadPercentageAverage(percentage []float64) error {
+	cpuLogger.logger.Writer().Write([]byte(fmt.Sprintf("[ Average CPU Load: %5.1f%% ] ", percentage[0])))
+
+	return nil
+}
+
+func (cpuLogger *PrettyCPULogger) LogCPULoadPercentagePerCore(percentages []float64) error {
 	currentMetrics := formatCoreMetrics(percentages)
 	cpuLogger.logger.Writer().Write([]byte(currentMetrics))
 
@@ -140,7 +169,15 @@ func NewJsonCPULogger(opts ...JsonCPULoggerOption) (*JsonCPULogger, error) {
 	return jsonCpuLogger, nil
 }
 
-func (cpuLogger *JsonCPULogger) LogCPULoadPercentage(percentages []float64) error {
+func (cpuLogger *JsonCPULogger) LogCPULoadPercentageAverage(percentage []float64) error {
+	cpuLogger.logger.Info("CPU metrics",
+		"average_load", percentage,
+	)
+
+	return nil
+}
+
+func (cpuLogger *JsonCPULogger) LogCPULoadPercentagePerCore(percentages []float64) error {
 	cpuLogger.logger.Info("CPU metrics",
 		"cores", percentages,
 	)

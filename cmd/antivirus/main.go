@@ -29,10 +29,7 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	appConfig, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("config error: %w", err)
-	}
+	appConfig := config.Load()
 
 	log.Printf("Version: %s", appConfig.Version)
 
@@ -41,8 +38,8 @@ func run(ctx context.Context) error {
 		log.Fatalf("logging.GetLoggerUsingConfig() failed: %s", err)
 	}
 	cpuMonitor, err := monitoring.NewCPUMonitor(
-		5,                                      // windowSize
-		monitoring.WithInterval(1*time.Second), // interval
+		5, // windowSize
+		monitoring.WithInterval(time.Duration(appConfig.CPUMonitoringInterval)*time.Millisecond), // interval
 		monitoring.WithLogger(&cpuLogger),
 	)
 	if err != nil {
