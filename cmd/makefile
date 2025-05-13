@@ -48,8 +48,9 @@ build: ## Build binary
 .PHONY: build-all
 build-all: ## Build for all platforms
 	@GOOS=linux GOARCH=amd64 go build $(GO_BUILD_FLAGS) -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./$(BINARY_NAME)
-	@GOOS=darwin GOARCH=amd64 go build $(GO_BUILD_FLAGS) -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./$(BINARY_NAME)
-	@GOOS=windows GOARCH=amd64 go build $(GO_BUILD_FLAGS) -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(BINARY_NAME)
+	@GOOS=linux GOARCH=arm64 go build $(GO_BUILD_FLAGS) -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./$(BINARY_NAME)
+	#@GOOS=darwin GOARCH=amd64 go build $(GO_BUILD_FLAGS) -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./$(BINARY_NAME)
+	#@GOOS=windows GOARCH=amd64 go build $(GO_BUILD_FLAGS) -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(BINARY_NAME)
 
 ##@ Docker
 

@@ -66,6 +66,8 @@ func run(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("cpu monitoring error: %w", err)
 			}
+
+			monitoring.MonitorUSB()
 		}
 	}
 }
