@@ -60,7 +60,7 @@ func run(ctx context.Context) error {
 	// Start the USB monitoring in a goroutine
 	go func() {
 		defer close(done) // Signal that this goroutine is done
-		monitoring.MonitorUSB()
+		monitoring.MonitorUSB(ctx)
 	}()
 
 	// Wait for both goroutines to finish
