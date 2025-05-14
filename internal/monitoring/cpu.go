@@ -189,8 +189,10 @@ func (m *CPUMonitor) CollectMetrics() error {
 	// Log per core
 	m.logger.LogCPULoadPercentagePerCore(percentagesPerCore)
 
-	historical := logging.FormatHistorical(m.metrics.Recent(5))
-	fmt.Printf("%s\n", historical)
+	/*
+		historical := logging.FormatHistorical(m.metrics.Recent(5))
+		fmt.Printf("%s\n", historical)
+	*/
 	/*
 		currentMetrics := logging.formatCoreMetrics(percentageAverage) // Assuming percentages is [][]float64
 		historical := logging.formatHistorical(m.metrics.Recent(5))

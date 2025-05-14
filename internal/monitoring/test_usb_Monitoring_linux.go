@@ -16,15 +16,20 @@ static int getErrno() {
 */
 import "C"
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Dogru-Isim/airgap-antivirus/internal/config"
+	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
+	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 	"unsafe"
 )
 
-func DetectingUSB() {
+func DetectingUSB(ctx context.Context) {
 	udev := C.udev_new()
 	if udev == nil {
 		fmt.Println("Failed to create udev context")
@@ -65,7 +70,7 @@ func DetectingUSB() {
 				fmt.Println("GetUSBPath() failed: ", err)
 			}
 			for _, path := range mountPath {
-				MonitorUSB(path)
+				MonitorUSB(path, ctx)
 			}
 		case "remove":
 			fmt.Printf("USB disconnected: %s\n", devpath)
@@ -75,7 +80,18 @@ func DetectingUSB() {
 	}
 }
 
-func MonitorUSB(path string) {
+func MonitorUSB(path string, ctx context.Context) {
+	fmt.Println("helo")
+	output, err := os.OpenFile(filepath.Join(config.Load().ExecutableLocation, "../../../"+config.Load().LogPath+"usb_traffic_json.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	if err != nil {
+		fmt.Printf("cannot open log file")
+		os.Exit(1)
+	}
+	logger, _ := logging.NewUSBLogger(
+		logging.USBLoggerWithContext(ctx),
+		logging.USBLoggerWithOutput(output),
+	)
+
 	// Initialize fanotify (zonder O_LARGEFILE)
 	fd, err := C.fanotify_init(C.FAN_REPORT_FID|C.FAN_CLASS_NOTIF|C.FAN_NONBLOCK, C.O_RDONLY)
 	if fd == -1 {
@@ -120,13 +136,16 @@ func MonitorUSB(path string) {
 		metadata := (*C.struct_fanotify_event_metadata)(unsafe.Pointer(&buf[0]))
 
 		if metadata.mask&C.FAN_OPEN != 0 {
-			fmt.Printf("[%s]Open detected from PID: %d\n", path, metadata.pid)
+			logger.Log(slog.LevelInfo, fmt.Sprintf("[NORMAL] Read detected from PID in %s: %d\n", path, metadata.pid))
+			//fmt.Printf("[%s]Open detected from PID: %d\n", path, metadata.pid)
 		}
 		if metadata.mask&C.FAN_CREATE != 0 {
-			fmt.Printf("[%s]Create detected from PID: %d\n", path, metadata.pid)
+			logger.Log(slog.LevelInfo, fmt.Sprintf("[SUSPICIOUS] Create detected from PID in %s: %d\n", path, metadata.pid))
+			//fmt.Printf("[%s]Create detected from PID: %d\n", path, metadata.pid)
 		}
 		if metadata.mask&C.FAN_MODIFY != 0 {
-			fmt.Printf("[%s]Write detected from PID: %d\n", path, metadata.pid)
+			logger.Log(slog.LevelInfo, fmt.Sprintf("[SUSPICIOUS] Write detected from PID in %s: %d\n", path, metadata.pid))
+			//fmt.Printf("[%s]Write detected from PID: %d\n", path, metadata.pid)
 		}
 	}
 }
@@ -151,7 +170,6 @@ func GetUSBPath() ([]string, error) {
 	// - ls /dev/sdc* /// checkt of er partities zijn
 	// - lsblk -o NAME,MOUNTPOINT,TRAN | grep 'sdc1'|awk -F ' ' '{print $2}' //checkt de mountpoints van de partities
 	///kijk of de command gebruikt is
-
 	cmd := exec.Command("lsblk", "-J", "-o", "NAME,MOUNTPOINTS,TRAN")
 	out, err := cmd.Output()
 	if err != nil {
@@ -164,14 +182,14 @@ func GetUSBPath() ([]string, error) {
 	}
 	fmt.Println(result)
 
+	var allMountpoints []string
+
 	// Doorloop alle block devices
 	for _, device := range result.Blockdevices {
 		if device.Tran != nil && *device.Tran == "usb" {
 			fmt.Printf("USB device: %s\n", device.Name)
 			for _, child := range device.Children {
-				fmt.Println("Hello")
 				if child.Mountpoints != nil {
-					allMountpoints := []string{}
 					for _, mountpoint := range child.Mountpoints {
 						allMountpoints = append(allMountpoints, mountpoint)
 						fmt.Printf("  Partitie: %s, Mountpoint: %s\n", child.Name, mountpoint)
@@ -184,6 +202,6 @@ func GetUSBPath() ([]string, error) {
 			}
 		}
 	}
-	return nil, nil
+	return allMountpoints, nil
 
 }
