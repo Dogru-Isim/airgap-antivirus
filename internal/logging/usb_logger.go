@@ -11,19 +11,30 @@ import (
 	"sync"
 )
 
-type Action int
+type SuspicionLevel int
 
 const (
-	Write Action = 0
-	Read  Action = 1
+	SuspicionLevelSuspicious SuspicionLevel = 0
+	SuspicionLevelNormal     SuspicionLevel = 1
 )
+
+func (suspicionLevel SuspicionLevel) String() string {
+	switch suspicionLevel {
+	case SuspicionLevelSuspicious:
+		return "SUSPICIOUS"
+	case SuspicionLevelNormal:
+		return "NORMAL"
+	default:
+		return "UNCLASSIFIED"
+	}
+}
 
 var lock = &sync.Mutex{}
 
 var loggerInstance USBLogger // singleton
 
 type USBLogger interface {
-	Log(usbLogLevel slog.Level, msg string) error
+	Log(usbLogLevel slog.Level, suspicionLevel SuspicionLevel, msg string) error
 	SetOutput(w io.Writer)
 	SetContext(ctx context.Context)
 }
@@ -77,17 +88,17 @@ func NewJsonUSBLogger(options ...USBLoggerOption) (*JsonUSBLogger, error) {
 			}
 		}
 	} else {
-		loggerInstance.Log(slog.LevelDebug, "single USBLogger instance already created")
+		loggerInstance.Log(slog.LevelDebug, SuspicionLevelNormal, "single USBLogger instance already created")
 	}
 
 	return loggerInstance.(*JsonUSBLogger), nil
 }
 
-func (jsonUsbLogger *JsonUSBLogger) Log(usbLogLevel slog.Level, logMsg string) error {
+func (jsonUsbLogger *JsonUSBLogger) Log(usbLogLevel slog.Level, suspicionLevel SuspicionLevel, logMsg string) error {
 	if jsonUsbLogger.logger == nil {
 		return errors.New("logger is not initialized")
 	}
-	jsonUsbLogger.logger.Log(jsonUsbLogger.context, usbLogLevel, logMsg)
+	jsonUsbLogger.logger.Log(jsonUsbLogger.context, slog.Level(usbLogLevel), fmt.Sprintf("[%s] %s", suspicionLevel.String(), logMsg))
 	return nil
 }
 

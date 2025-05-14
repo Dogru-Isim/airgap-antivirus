@@ -136,15 +136,15 @@ func MonitorUSB(path string, ctx context.Context) {
 		metadata := (*C.struct_fanotify_event_metadata)(unsafe.Pointer(&buf[0]))
 
 		if metadata.mask&C.FAN_OPEN != 0 {
-			logger.Log(slog.LevelInfo, fmt.Sprintf("[NORMAL] Read detected from PID in %s: %d\n", path, metadata.pid))
+			logger.Log(slog.LevelInfo, logging.SuspicionLevelNormal, fmt.Sprintf("Read detected from PID in %s: %d\n", path, metadata.pid))
 			//fmt.Printf("[%s]Open detected from PID: %d\n", path, metadata.pid)
 		}
 		if metadata.mask&C.FAN_CREATE != 0 {
-			logger.Log(slog.LevelInfo, fmt.Sprintf("[SUSPICIOUS] Create detected from PID in %s: %d\n", path, metadata.pid))
+			logger.Log(slog.LevelInfo, logging.SuspicionLevelSuspicious, fmt.Sprintf("Create detected from PID in %s: %d\n", path, metadata.pid))
 			//fmt.Printf("[%s]Create detected from PID: %d\n", path, metadata.pid)
 		}
 		if metadata.mask&C.FAN_MODIFY != 0 {
-			logger.Log(slog.LevelInfo, fmt.Sprintf("[SUSPICIOUS] Write detected from PID in %s: %d\n", path, metadata.pid))
+			logger.Log(slog.LevelInfo, logging.SuspicionLevelSuspicious, fmt.Sprintf("Write detected from PID in %s: %d\n", path, metadata.pid))
 			//fmt.Printf("[%s]Write detected from PID: %d\n", path, metadata.pid)
 		}
 	}
