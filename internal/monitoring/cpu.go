@@ -2,10 +2,11 @@ package monitoring
 
 import (
 	"fmt"
-	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
-	"github.com/shirou/gopsutil/cpu"
 	"sync"
 	"time"
+
+	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
+	"github.com/shirou/gopsutil/cpu"
 )
 
 // ==================== Static CPU Info ====================

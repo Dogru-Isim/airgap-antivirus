@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/Dogru-Isim/airgap-antivirus/internal/config"
-	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
-	"github.com/Dogru-Isim/airgap-antivirus/internal/monitoring"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/Dogru-Isim/airgap-antivirus/internal/config"
+	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
+	"github.com/Dogru-Isim/airgap-antivirus/internal/monitoring"
 )
 
 func main() {
@@ -66,8 +67,7 @@ func run(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("cpu monitoring error: %w", err)
 			}
-
-			monitoring.MonitorUSB()
 		}
+		monitoring.DetectingUSB()
 	}
 }
