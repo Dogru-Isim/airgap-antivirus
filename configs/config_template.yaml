@@ -1,4 +1,12 @@
+# Release Config
 version: 0.1.0
+
+# General Monitoring Config
+log_path: ./logs/
+
+# CPU Monitoring Related
 cpu_logger: pretty
 cpu_monitoring_interval: 500  # milliseconds
-log_path: ./logs/
+
+# USB Monitoring Related
+usb_logger: json

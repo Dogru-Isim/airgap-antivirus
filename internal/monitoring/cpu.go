@@ -1,12 +1,13 @@
 package monitoring
 
 import (
+	"context"
 	"fmt"
-	"sync"
-	"time"
-
 	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
 	"github.com/shirou/gopsutil/cpu"
+	"log"
+	"sync"
+	"time"
 )
 
 // ==================== Static CPU Info ====================
@@ -201,4 +202,28 @@ func (m *CPUMonitor) CollectMetrics() error {
 
 	return nil
 
+}
+
+func (m *CPUMonitor) Start(ctx context.Context) error {
+	ticker := time.NewTicker(m.Interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Shutting down gracefully")
+			return nil
+		case <-ticker.C:
+			cpuInfo, err := m.GetCPUInfo()
+			m.Sync.Do(func() {
+				log.Printf("Number of logical cores: %d", cpuInfo.LogicalCores)
+			})
+			if err := m.CollectMetrics(); err != nil {
+				return fmt.Errorf("cpu monitoring error: %w", err)
+			}
+			if err != nil {
+				return fmt.Errorf("cpu monitoring error: %w", err)
+			}
+		}
+	}
 }

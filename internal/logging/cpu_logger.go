@@ -20,7 +20,7 @@ type CPULogger interface {
 
 type CPULoggerFactory func(opts ...any) (CPULogger, error)
 
-func GetLoggerUsingConfig() (CPULogger, error) {
+func GetCPULoggerUsingConfig() (CPULogger, error) {
 	appConfig := config.Load()
 
 	// Map of logger factory functions

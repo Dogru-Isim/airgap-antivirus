@@ -16,97 +16,170 @@ static int getErrno() {
 */
 import "C"
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 	"unsafe"
 )
 
+type Monitor struct {
+	fd   C.int
+	path string
+}
+
 func DetectingUSB() {
-	processedDevices := make(map[string]bool)
+	processedDevices := make(map[string]bool)   // mountpoint-active state
+	deviceMounts := make(map[string]string)     // devpath- mountpoint
+	activeMonitors := make(map[string]*Monitor) // path - monitor ponter
+
+	// Check eerst al aangesloten USB-apparaten
 	if CheckPluggedUSB() {
 		mountPaths, err := GetUSBPath()
 		if err != nil {
 			fmt.Printf("Error getting USB paths: %v\n", err)
 		} else {
-			for _, path := range mountPaths {
-				go MonitorUSB(path) // Start monitoring in aparte goroutine
+			for device, path := range mountPaths {
+				go MonitorUSB(path, activeMonitors)
 				processedDevices[path] = true
+				devpath, err := getDevpath(device)
+				fmt.Println("hello", devpath)
+				if err != nil {
+					fmt.Errorf("Was not able to get devpath: %w", err)
+				}
+				deviceMounts[devpath] = path
 			}
 		}
 	}
 
-	udev := C.udev_new()
-	if udev == nil {
-		fmt.Println("Failed to create udev context")
+	// Start udevadm monitor voor USB events
+	cmd := exec.Command("udevadm", "monitor", "--kernel", "--subsystem-match=usb", "--property")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		fmt.Println("Error creating stdout pipe:", err)
 		return
 	}
-	defer C.udev_unref(udev)
 
-	monitor := C.udev_monitor_new_from_netlink(udev, C.CString("udev"))
-	if monitor == nil {
-		fmt.Println("Failed to create monitor")
+	if err := cmd.Start(); err != nil {
+		fmt.Println("Error starting udevadm:", err)
 		return
 	}
-	defer C.udev_monitor_unref(monitor)
+	defer cmd.Process.Kill()
 
-	C.udev_monitor_filter_add_match_subsystem_devtype(monitor, C.CString("usb"), C.CString("usb_device"))
-	C.udev_monitor_enable_receiving(monitor)
-
+	scanner := bufio.NewScanner(stdout)
 	fmt.Println("Monitoring USB devices...")
 
-	for {
+	var currentEvent map[string]string
+	for scanner.Scan() {
+		line := scanner.Text()
 
-		dev := C.udev_monitor_receive_device(monitor)
-		if dev == nil {
-			time.Sleep(2 * time.Second) //<so that cpu does not overload>
-			continue
-		}
+		// Begin van een nieuw event
+		if strings.HasPrefix(line, "KERNEL[") {
+			currentEvent = make(map[string]string)
+		} else if strings.Contains(line, "=") && currentEvent != nil {
+			// Parse key-value paren
+			parts := strings.SplitN(line, "=", 2)
+			currentEvent[parts[0]] = parts[1]
+		} else if line == "" && currentEvent != nil {
+			// Verwerk het event
+			action := currentEvent["ACTION"]
+			devpath := currentEvent["DEVPATH"]
 
-		action := C.GoString(C.udev_device_get_action(dev))
-		devpath := C.GoString(C.udev_device_get_devpath(dev))
-		vendor := C.GoString(C.udev_device_get_property_value(dev, C.CString("ID_VENDOR")))
-		model := C.GoString(C.udev_device_get_property_value(dev, C.CString("ID_MODEL")))
+			if action == "add" {
+				vendor, model := getUSBInfo(devpath) // Gebruik udevadm info
+				fmt.Printf("USB connected: %s %s (%s)\n", vendor, model, devpath)
 
-		if action == "add" {
-			fmt.Printf("USB connected: %s %s (%s)\n", vendor, model, devpath)
-			maxattempt := 10
-			var mountPath []string
-			var err error
+				maxattempt := 10
+				mountPaths := make(map[string]string)
+				var err error
 
-			for attempt := 1; attempt <= maxattempt; attempt++ {
-				mountPath, err = GetUSBPath()
-				if err == nil && len(mountPath) > 0 {
-					break
+				for attempt := 1; attempt <= maxattempt; attempt++ {
+					mountPaths, err = GetUSBPath()
+					fmt.Println(mountPaths)
+					fmt.Println(err)
+					if err == nil && len(mountPaths) > 0 {
+						break
+					}
+					if err != nil {
+						fmt.Printf("Attempt %d failed:%v\n", attempt, err)
+					}
+					fmt.Printf("Next attempt will begin in 2 seconds\n")
+					time.Sleep(2 * time.Second)
 				}
-				if err != nil {
-					fmt.Printf("Attempt %d failed:%v\n", attempt, err)
+
+				for _, path := range mountPaths {
+					if processedDevices[path] {
+						fmt.Printf("%s is already being monitored\n", path)
+						continue
+					}
+					go MonitorUSB(path, activeMonitors)
+					processedDevices[path] = true
+					deviceMounts[devpath] = path
 				}
 
-				fmt.Printf("Next attempt will begin in 2 seconds\n")
-				time.Sleep(2 * time.Second)
-
+			} else if action == "remove" {
+				fmt.Printf("USB disconnected: %s\n", devpath)
+				if path, exists := deviceMounts[devpath]; exists {
+					delete(processedDevices, path)
+					delete(deviceMounts, devpath)
+					fmt.Printf("delete succeeded")
+					if monitor, ok := activeMonitors[path]; ok {
+						C.close(monitor.fd) // Sluit de file descriptor
+						delete(activeMonitors, path)
+						fmt.Printf("Stopped with monitoring for: %s\n", path)
+					}
+				}
 			}
 
-			for _, path := range mountPath {
-				//fmt.Println("hello usb")
-				if processedDevices[path] {
-					fmt.Printf("%s is already being monitored\n", path)
-					continue
-				}
-				go MonitorUSB(path)
-				processedDevices[path] = true
-			}
-		} else if action == "remove" {
-			fmt.Printf("USB disconnected: %s\n", devpath)
+			currentEvent = nil
 		}
-		C.udev_device_unref(dev)
 	}
 }
 
-func MonitorUSB(path string) {
+func getDevpath(device string) (string, error) {
+	// Build command
+	cmd := exec.Command("udevadm", "info", "--query=all", "--name="+device)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("error running udevadm: %w", err)
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "E: DEVPATH=") {
+
+			return strings.TrimPrefix(line, "E: DEVPATH="), nil
+		}
+	}
+
+	return "", fmt.Errorf("DEVPATH not found for %s", device)
+}
+
+// Helper om USB-info op te halen met udevadm
+func getUSBInfo(devpath string) (string, string) {
+	cmd := exec.Command("udevadm", "info", "--query=property", "--path="+devpath)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "unknown", "unknown"
+	}
+
+	props := make(map[string]string)
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.Contains(line, "=") {
+			parts := strings.SplitN(line, "=", 2)
+			props[parts[0]] = parts[1]
+		}
+	}
+
+	return props["ID_VENDOR"], props["ID_MODEL"]
+}
+
+func MonitorUSB(path string, activeMonitors map[string]*Monitor) {
 	// Initialize fanotify (zonder O_LARGEFILE)
 	fd, err := C.fanotify_init(C.FAN_REPORT_FID|C.FAN_REPORT_DFID_NAME|C.FAN_CLASS_NOTIF|C.FAN_NONBLOCK, C.O_RDONLY)
 	if fd == -1 {
@@ -118,11 +191,11 @@ func MonitorUSB(path string) {
 	fileInfo, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		fmt.Printf("%s does not exist!\n", path)
-		os.Exit(1)
+		//os.Exit(1)
 	}
 	if !fileInfo.IsDir() {
 		fmt.Printf("%s is Not a directory!\n", path)
-		os.Exit(1)
+		//os.Exit(1)
 	}
 
 	cPath := C.CString(path)
@@ -141,8 +214,11 @@ func MonitorUSB(path string) {
 	if ret == -1 {
 		errno := C.getErrno()
 		fmt.Printf("fanotify_mark failed: %v (errno=%d)\n", err, errno)
-		os.Exit(1)
+		//os.Exit(1)
 	}
+
+	activeMonitors[path] = &Monitor{fd: fd, path: path}
+	defer delete(activeMonitors, path) // Verwijder bij exit
 
 	fmt.Printf("Monitoring %s...\n", path)
 	for {
@@ -201,7 +277,7 @@ type MountpointBlockDevice struct {
 	Children    []MountpointBlockDevice `json:"children,omitempty"`
 }
 
-func GetUSBPath() ([]string, error) {
+func GetUSBPath() (map[string]string, error) {
 
 	cmd := exec.Command("lsblk", "-J", "-o", "NAME,MOUNTPOINTS,TRAN")
 	out, err := cmd.Output()
@@ -215,7 +291,7 @@ func GetUSBPath() ([]string, error) {
 	}
 	//fmt.Println(result)
 
-	var allMountpoints []string
+	var allMountDevice = make(map[string]string)
 	// Doorloop alle block devices
 	for _, device := range result.Blockdevices {
 		if device.Tran != nil && *device.Tran == "usb" {
@@ -224,19 +300,22 @@ func GetUSBPath() ([]string, error) {
 				//fmt.Println("Hello")
 				if child.Mountpoints != nil {
 					for _, mountpoint := range child.Mountpoints {
-						allMountpoints = append(allMountpoints, mountpoint)
-						fmt.Printf("  Partitie: %s, Mountpoint: %s\n", child.Name, mountpoint)
-
+						if mountpoint != "" {
+							allMountDevice[child.Name] = mountpoint
+							fmt.Printf("  Partitie: %s, Mountpoint: %s\n", child.Name, mountpoint)
+						}
 					}
-					fmt.Println(allMountpoints)
+					fmt.Println(allMountDevice)
 				} else {
 					fmt.Printf("  Partitie: %s, geen mountpoint\n", child.Name)
 				}
 			}
 		}
 	}
-
-	return allMountpoints, nil
+	if len(allMountDevice) == 0 {
+		return nil, fmt.Errorf("mountpoint is empty")
+	}
+	return allMountDevice, nil
 
 }
 
