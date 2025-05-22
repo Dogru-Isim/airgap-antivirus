@@ -25,7 +25,7 @@ debug: ## Debug the application with Delve
 
 .PHONY: test
 test: ## Run unit tests
-	@go test $(GO_TEST_FLAGS) ../... -o $(BUILD_DIR) -count=1
+	@echo what && go test $(GO_TEST_FLAGS) ../... -o $(BUILD_DIR) -count=1
 
 .PHONY: test-cover
 test-cover: test ## Run tests and generate coverage report
