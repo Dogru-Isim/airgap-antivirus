@@ -66,11 +66,25 @@ Again, theoretically the techniques that are used for preventing side-channel at
 #### Configuration Settings
 This is the current default config
 ```yaml
+# Release Config
 version: 0.1.0
-cpu_logger: json
+
+# General Monitoring Config
+log_path: ./logs/
+
+# CPU Monitoring Related
+cpu_logger: pretty
+cpu_monitoring_interval: 500  # milliseconds
+
+# USB Monitoring Related
+usb_logger: json
 ```
 
 **version:** current program version
+**log_path:** the directory where the log files are stored. It value is relative to the project root. Example log file: cpu_load_pretty.log (<monitoring_type>_<format>.log)
 **cpu_logger:** logger type for the cpu logger to use there are currently 2 types:
 - json: json format provided by Go's log/slog package
 - pretty: human readable format
+**cpu_monitoring_interval:** the interval between each CPU load measurement. This value will be used with a machine learning algorithm. Ideally, the value should be tuned to reliably used to detect covert channels that are based on manipulating the CPU consumption while keeping the size of the CPU load data data relatively low. A machine learning algorithm analyzes this data for anomalies.
+**usb_logger:** logger type for the usb traffic monitor to use, there is currently 1 type:
+- json: json format provided by Go's log/slog package
