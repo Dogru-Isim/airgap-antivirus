@@ -1,0 +1,22 @@
+name: Makefile CI
+
+on:
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    branches: [ "dev" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run tests
+      run: make --makefile=./../../cmd/makefile test
+
+
+    - name: Run build
+      run: make --makefile=./../../cmd/makefile build
