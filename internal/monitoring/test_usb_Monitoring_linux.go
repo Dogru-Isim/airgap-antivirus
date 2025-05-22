@@ -1,8 +1,8 @@
 package monitoring
 
 /*
-#cgo pkg-config: libudev
-#include <libudev.h>
+//#cgo pkg-config: libudev
+//#include <libudev.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/fanotify.h>
