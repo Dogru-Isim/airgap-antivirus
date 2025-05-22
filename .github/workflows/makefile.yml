@@ -15,8 +15,8 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Run tests
-      run: make --makefile=./../../cmd/makefile test
+      run: cd ./../../ && make test -f cmd/makefile 
 
 
     - name: Run build
-      run: make --makefile=./../../cmd/makefile build
+      run: cd ./../../cmd && make build
