@@ -18,8 +18,8 @@ jobs:
       run: sudo apt install libudev-dev
 
     - name: Run tests
-      run: make test -f cmd/makefile 
-      working-directory: ./
+      run: make test -f makefile 
+      working-directory: ./cmd
 
     - name: Run build
       run: cd ./../../cmd/ && make build
