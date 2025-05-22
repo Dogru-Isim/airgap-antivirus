@@ -27,17 +27,19 @@ func Load() *AppConfig {
 	syncOnce.Do(func() {
 		executableLocation, err := os.Executable()
 		if err != nil {
-			fmt.Println("executable source directory read error: %w", err)
+			fmt.Printf("executable source directory read error: %v\n", err)
 			os.Exit(1)
 		}
 		appConfigData, err := os.ReadFile(filepath.Join(executableLocation, "../../../configs/config.yaml")) // cmd/build/<executable_name>/../../../configs/config.yaml
+		//appConfigData, err := os.ReadFile(filepath.Join(executableLocation, "../../configs/config.yaml")) // cmd/build/<executable_name>/../../configs/config.yaml
+		//appConfigData, err := os.ReadFile("/home/mint/University/OpenLearning/GroupProjects/AirGappedSystemSecurity/Github/air-gapped/software-based-detection/antivirus-project/configs/config.yaml")
 		if err != nil {
-			fmt.Println("config read error: %w", err)
+			fmt.Printf("config read error: %v\n", err)
 			os.Exit(1)
 		}
 
 		if err := yaml.Unmarshal(appConfigData, &appConfig); err != nil {
-			fmt.Println("config parse error: %w", err)
+			fmt.Printf("config parse error: %v\n", err)
 			os.Exit(1)
 		}
 		appConfig.ExecutableLocation = executableLocation

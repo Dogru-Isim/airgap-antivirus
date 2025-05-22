@@ -21,11 +21,11 @@ run: ## Run the application
 
 .PHONY: debug
 debug: ## Debug the application with Delve
-	@$(DELVE) debug ./cmd/$(BINARY_NAME)
+	@$(DELVE) debug $(shell pwd)/cmd/build/
 
 .PHONY: test
 test: ## Run unit tests
-	@go test $(GO_TEST_FLAGS) ./$(BINARY_NAME)
+	@go test $(GO_TEST_FLAGS) ./... -o $(shell pwd)/cmd/build/
 
 .PHONY: test-cover
 test-cover: test ## Run tests and generate coverage report
