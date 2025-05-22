@@ -14,10 +14,14 @@ static int getErrno() {
 import "C"
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
+	"strings"
 	"time"
 	"unsafe"
 )
@@ -51,45 +55,67 @@ type Monitor struct {
 	fd        C.int
 }
 
-func main() {
-	newUSBDetector := USBDetector{}
-	fmt.Println("Starting to monitor for USBs:")
-	for {
-		newUSBDetector.DetectNewUSB()
-		//fmt.Println("hi")
-		newUSBDetector.USBDifferenceChecker()
-		// voor elke mountpoint -> monitor.NewMonitor() -> monitor.Start()
-		if newUSBDetector.NewUSB != nil {
-			for _, usb := range newUSBDetector.NewUSB {
-				for _, partition := range usb.Partitions {
-					for _, mountpoint := range partition.Mountpoints {
-						monitor, err := NewMonitor(mountpoint)
-						if err == nil {
-							fmt.Printf("%s is starting\n", monitor.Mountpath)
-							go monitor.Start(context.Background())
-						}
-					}
-				}
-			}
-			newUSBDetector.NewUSB = nil
-		}
-		time.Sleep(2 * time.Second)
+// func main() {
+// 	newUSBDetector := USBDetector{}
+// 	fmt.Println("Starting to monitor for USBs:")
+// 	for {
+// 		newUSBDetector.DetectNewUSB()
+// 		//fmt.Println("hi")
+// 		newUSBDetector.USBDifferenceChecker()
+// 		// voor elke mountpoint -> monitor.NewMonitor() -> monitor.Start()
+// 		if newUSBDetector.NewUSB != nil {
+// 			for _, usb := range newUSBDetector.NewUSB {
+// 				for _, partition := range usb.Partitions {
+// 					for _, mountpoint := range partition.Mountpoints {
+// 						monitor, err := NewMonitor(mountpoint)
+// 						if err == nil {
+// 							fmt.Printf("%s is starting\n", monitor.Mountpath)
+// 							go monitor.Start(context.Background())
+// 						}
+// 					}
+// 				}
+// 			}
+// 			newUSBDetector.NewUSB = nil
+// 		}
+// 		time.Sleep(2 * time.Second)
 
+// 	}
+
+// }
+func NewUSBDetector() *USBDetector {
+	return &USBDetector{
+		Blockdevices: make([]BlockDevice, 0),
+		NewUSB:       make([]USB, 0),
+		OutputUSB:    make([]USB, 0),
+		ExistingUSB:  make([]USB, 0),
+	}
+}
+func (u USB) Key() string {
+	// Verzamel alle mountpoints van alle partities
+	var mountpoints []string
+	for _, partition := range u.Partitions {
+		mountpoints = append(mountpoints, partition.Mountpoints...)
 	}
 
-}
+	sort.Strings(mountpoints)
+	hasher := sha1.New()
+	hasher.Write([]byte(strings.Join(mountpoints, "|"))) //  | = scheidingsteken
+	hash := hex.EncodeToString(hasher.Sum(nil))
 
+	// Combineer met naam en aantal partities
+	return fmt.Sprintf("%s-%d-%s", u.Name, len(u.Partitions), hash)
+}
 func (u *USBDetector) USBDifferenceChecker() {
 	if u.OutputUSB != nil {
 		if u.ExistingUSB != nil {
 			existingMap := make(map[string]bool)
 			for _, usb := range u.ExistingUSB {
-				existingMap[usb.Name] = true
+				existingMap[usb.Key()] = true
 			}
 
 			var newUSBs []USB
 			for _, usb := range u.OutputUSB {
-				if !existingMap[usb.Name] {
+				if !existingMap[usb.Key()] {
 					newUSBs = append(newUSBs, usb)
 				}
 			}
