@@ -66,7 +66,7 @@ func (s *SystemCPUInfo) GetInfo() (StaticCPUInfo, error) {
 type CPUMetrics struct {
 	mu                 sync.Mutex
 	consumptionPerCore [][]float64 // [[core1_con, core2_con, ...], [core1_con, core2_con, ...]]
-	consumptionAverage [][]float64 // [average1_con, average2_con, ...]
+	consumptionAverage [][]float64 // [[average1_con], [average2_con], ...]
 	windowSize         int
 }
 
