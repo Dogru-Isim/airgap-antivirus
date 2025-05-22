@@ -18,7 +18,7 @@ jobs:
       run: sudo apt install libudev-dev
 
     - name: Create config
-      run: cp configs/config_template.yaml configs/config.yaml /tmp/configs/config.yaml
+      run: mkdir -p /tmp/configs && cp configs/config_template.yaml configs/config.yaml /tmp/configs/config.yaml # adding /tmp/configs/config.yaml but it's caused by a bug, make test cannot get the config from <project_root>/configs/config.yaml 
 
     - name: Run tests
       run: make test -f makefile 
