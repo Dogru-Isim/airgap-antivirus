@@ -18,7 +18,7 @@ jobs:
       run: sudo apt install libudev-dev
 
     - name: Create config
-      run: cp configs/config_template.yaml configs/config.yaml
+      run: cp configs/config_template.yaml configs/config.yaml /tmp/configs/config.yaml
 
     - name: Run tests
       run: make test -f makefile 
