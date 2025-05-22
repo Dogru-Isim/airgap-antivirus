@@ -5,28 +5,43 @@ import (
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 type AppConfig struct {
-	Version   string `yaml:"version"`
-	CPULogger string `yaml:"cpu_logger"`
+	ExecutableLocation    string // populated programmatically instead of from a config file
+	Version               string `yaml:"version"`
+	LogPath               string `yaml:"log_path"`
+	CPULogger             string `yaml:"cpu_logger"`
+	CPUMonitoringInterval int64  `yaml:"cpu_monitoring_interval"` // type is casted to time.Duration therefore it's stored as int64
+	USBLogger             string `yaml:"usb_logger"`
 }
 
-func Load() (*AppConfig, error) {
-	executableLocation, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("executable source directory read error: %w", err)
-	}
-	appConfigData, err := os.ReadFile(filepath.Join(executableLocation, "../../../configs/config.yaml"))
-	if err != nil {
-		return nil, fmt.Errorf("config read error: %w", err)
-	}
+var lock = &sync.Mutex{}
 
-	var appConfig AppConfig
+// Singleton
+var appConfig *AppConfig
+var syncOnce sync.Once
 
-	if err := yaml.Unmarshal(appConfigData, &appConfig); err != nil {
-		return nil, fmt.Errorf("config parse error: %w", err)
-	}
+func Load() *AppConfig {
+	syncOnce.Do(func() {
+		executableLocation, err := os.Executable()
+		if err != nil {
+			fmt.Println("executable source directory read error: %w", err)
+			os.Exit(1)
+		}
+		appConfigData, err := os.ReadFile(filepath.Join(executableLocation, "../../../configs/config.yaml")) // cmd/build/<executable_name>/../../../configs/config.yaml
+		if err != nil {
+			fmt.Println("config read error: %w", err)
+			os.Exit(1)
+		}
 
-	return &appConfig, nil
+		if err := yaml.Unmarshal(appConfigData, &appConfig); err != nil {
+			fmt.Println("config parse error: %w", err)
+			os.Exit(1)
+		}
+		appConfig.ExecutableLocation = executableLocation
+	})
+
+	return appConfig
 }

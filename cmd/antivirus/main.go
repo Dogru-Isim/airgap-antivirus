@@ -29,46 +29,43 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	appConfig, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("config error: %w", err)
-	}
+	appConfig := config.Load()
 
 	log.Printf("Version: %s", appConfig.Version)
 
-	cpuLogger, err := logging.GetLoggerUsingConfig()
+	cpuLogger, err := logging.GetCPULoggerUsingConfig()
 	if err != nil {
 		log.Fatalf("logging.GetLoggerUsingConfig() failed: %s", err)
 	}
 	cpuMonitor, err := monitoring.NewCPUMonitor(
-		5,                                      // windowSize
-		monitoring.WithInterval(1*time.Second), // interval
+		5, // windowSize
+		monitoring.WithInterval(time.Duration(appConfig.CPUMonitoringInterval)*time.Millisecond), // interval
 		monitoring.WithLogger(&cpuLogger),
 	)
 	if err != nil {
 		return fmt.Errorf("cpu monitoring init failed: %w", err)
 	}
 
-	// TODO: Move this functionality info CPUMonitor.Start()
-	ticker := time.NewTicker(cpuMonitor.Interval)
-	defer ticker.Stop()
+	// Create a channel to signal completion
+	done := make(chan struct{})
 
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("Shutting down gracefully")
-			return nil
-		case <-ticker.C:
-			cpuInfo, err := cpuMonitor.GetCPUInfo()
-			cpuMonitor.Sync.Do(func() {
-				log.Printf("Number of logical cores: %d", cpuInfo.LogicalCores)
-			})
-			if err := cpuMonitor.CollectMetrics(); err != nil {
-				return fmt.Errorf("cpu monitoring error: %w", err)
-			}
-			if err != nil {
-				return fmt.Errorf("cpu monitoring error: %w", err)
-			}
+	// Start the CPU monitor in a goroutine
+	go func() {
+		defer close(done) // Signal that this goroutine is done
+		if err := cpuMonitor.Start(ctx); err != nil {
+			log.Printf("Error in CPU Monitor: %v", err)
 		}
-	}
+	}()
+
+	// Start the USB monitoring in a goroutine
+	go func() {
+		defer close(done)            // Signal that this goroutine is done
+		monitoring.DetectingUSB(ctx) // give context
+	}()
+
+	// Wait for both goroutines to finish
+	<-done
+	<-done // Wait for the second goroutine
+
+	return nil
 }

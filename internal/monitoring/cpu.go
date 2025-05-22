@@ -1,9 +1,11 @@
 package monitoring
 
 import (
+	"context"
 	"fmt"
 	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
 	"github.com/shirou/gopsutil/cpu"
+	"log"
 	"sync"
 	"time"
 )
@@ -62,9 +64,10 @@ func (s *SystemCPUInfo) GetInfo() (StaticCPUInfo, error) {
 
 // ==================== CPU Metrics ====================
 type CPUMetrics struct {
-	mu          sync.Mutex
-	consumption [][]float64 // [[core1_con, core2_con...], [core1_con, core2_con...]]
-	windowSize  int
+	mu                 sync.Mutex
+	consumptionPerCore [][]float64 // [[core1_con, core2_con, ...], [core1_con, core2_con, ...]]
+	consumptionAverage [][]float64 // [average1_con, average2_con, ...]
+	windowSize         int
 }
 
 func NewCPUMetrics(windowSize int) (*CPUMetrics, error) {
@@ -77,13 +80,23 @@ func NewCPUMetrics(windowSize int) (*CPUMetrics, error) {
 	}, nil
 }
 
-func (m *CPUMetrics) Record(usage []float64) {
+func (m *CPUMetrics) RecordPerCore(usagePerCore []float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.consumption = append(m.consumption, usage)
-	if len(m.consumption) > m.windowSize {
-		m.consumption = m.consumption[1:]
+	m.consumptionPerCore = append(m.consumptionPerCore, usagePerCore)
+	if len(m.consumptionPerCore) > m.windowSize {
+		m.consumptionPerCore = m.consumptionPerCore[1:]
+	}
+}
+
+func (m *CPUMetrics) RecordAverage(usageAverage []float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.consumptionAverage = append(m.consumptionAverage, usageAverage)
+	if len(m.consumptionPerCore) > m.windowSize {
+		m.consumptionPerCore = m.consumptionPerCore[1:]
 	}
 }
 
@@ -91,19 +104,20 @@ func (m *CPUMetrics) Recent(n int) [][]float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if n <= 0 || n > len(m.consumption) {
-		n = len(m.consumption)
+	if n <= 0 || n > len(m.consumptionPerCore) {
+		n = len(m.consumptionPerCore)
 	}
 
 	// Return a copy of the last n elements
-	start := len(m.consumption) - n
-	return append([][]float64(nil), m.consumption[start:]...)
+	start := len(m.consumptionPerCore) - n
+	return append([][]float64(nil), m.consumptionPerCore[start:]...)
 }
 
 // ==================== CPU Monitor ====================
 type CPUMonitor struct {
 	infoProvider CPUInfoProvider
 	metrics      *CPUMetrics
+	cpuInfo      *StaticCPUInfo
 	Interval     time.Duration
 	logger       logging.CPULogger //*logging.CPULogger
 	Sync         sync.Once
@@ -135,7 +149,6 @@ func NewCPUMonitor(windowSize int, opts ...CPUMonitorOption) (*CPUMonitor, error
 		return nil, fmt.Errorf("failed to create metrics: %w", err)
 	}
 
-	//logger, err := logging.NewPrettyCPULogger()
 	logger, err := logging.NewJsonCPULogger()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CPU logger: %w", err)
@@ -159,20 +172,30 @@ func (m *CPUMonitor) GetCPUInfo() (StaticCPUInfo, error) {
 }
 
 func (m *CPUMonitor) CollectMetrics() error {
-	percentages, err := cpu.Percent(m.Interval, true)
+	percentagesPerCore, err := cpu.Percent(0, true)
+	percentageAverage, err := cpu.Percent(0, false)
 	if err != nil {
 		return fmt.Errorf("failed to get CPU usage: %w", err)
 	}
-	if len(percentages) == 0 {
+	if len(percentagesPerCore) == 0 {
 		return fmt.Errorf("no CPU usage data available")
 	}
 
-	m.metrics.Record(percentages)
+	m.metrics.RecordPerCore(percentagesPerCore)
+	m.metrics.RecordAverage(percentageAverage)
 
-	m.logger.LogCPULoadPercentage(percentages)
+	// Log average
+	m.logger.LogCPULoadPercentageAverage(percentageAverage)
+	// Log per core
+	m.logger.LogCPULoadPercentagePerCore(percentagesPerCore)
+
 	/*
-		currentMetrics := formatCoreMetrics(percentages) // Assuming percentages is [][]float64
-		historical := formatHistorical(m.metrics.Recent(5))
+		historical := logging.FormatHistorical(m.metrics.Recent(5))
+		fmt.Printf("%s\n", historical)
+	*/
+	/*
+		currentMetrics := logging.formatCoreMetrics(percentageAverage) // Assuming percentages is [][]float64
+		historical := logging.formatHistorical(m.metrics.Recent(5))
 
 		fmt.Printf("Current CPU metrics:\n%s\n%s\n",
 			currentMetrics,
@@ -181,4 +204,28 @@ func (m *CPUMonitor) CollectMetrics() error {
 
 	return nil
 
+}
+
+func (m *CPUMonitor) Start(ctx context.Context) error {
+	ticker := time.NewTicker(m.Interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Shutting down gracefully")
+			return nil
+		case <-ticker.C:
+			cpuInfo, err := m.GetCPUInfo()
+			m.Sync.Do(func() {
+				log.Printf("Number of logical cores: %d", cpuInfo.LogicalCores)
+			})
+			if err := m.CollectMetrics(); err != nil {
+				return fmt.Errorf("cpu monitoring error: %w", err)
+			}
+			if err != nil {
+				return fmt.Errorf("cpu monitoring error: %w", err)
+			}
+		}
+	}
 }

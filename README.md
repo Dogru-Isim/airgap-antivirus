@@ -2,7 +2,7 @@
 
 ## What?
 
-The software-based security solution is initially developed for a school project. That repo is currently private so this readme doesn't include a link.
+The software-based security solution is initially developed for a school project. That repo is currently private so this readme doesn't include a link to it.
 
 This project aims to provide security for air-gapped systems by monitoring and preventing activities that are suspicious in an air-gapped context. Examples:
 
@@ -17,12 +17,15 @@ This project aims to provide security for air-gapped systems by monitoring and p
 
 ### Build from Source
 - Download the source code and navigate to `cmd/`
-- Download `make` (we're looking for a way to make the compilation not dependant on make which is a GNU project (linux stuff))
+- Download `make` (we're looking for a way to make the compilation not dependent on `make` which is a GNU project
 - You should see a file called `makefile`, if you can't see it, make sure that you are in the right directory and that the file is not moved somewhere else.
+- Before jumping to the next step, see [Create Config File](#create-config-file)
 - Run `make build` to build for your OS, run `make build-all` to compile for Linux, Darwin, and Windows.
+- After building the program, you should see the executable files under `build/` in `cmd/`. If you move the executable anywhere other than this directory, the program won't work because it won't be able to find the config file under the path ../../configs/ relative to the program's location. If you want to access the program from other locations then you should create a symbolic link.
+#### Create Config File
+The program looks for the main config file under `configs/config.yaml`. However, this file is not included in the source on Git. You should use the `configs/config_template.yaml` file to create your own `configs/config.yaml` file instead. Good news is, all you need to do is rename `config_template.yaml` to `config.yaml`. If you want to change the default config, then you can change the config accordingly. You can refer to [Configuration Settings](configuration-settings)
 
-
-## For Developers
+## For Developers and Technical People
 
 ### What is a software-based solution
 
@@ -38,15 +41,17 @@ Theoretically, a softare-based prevention system that ensures the CPU consumptio
 Again, theoretically the techniques that are used for preventing side-channel attacks in cryptography can be considered for this project in general.
 
 [Protecting Against Side Channel Attacks by RocketMeUpCybersecurity](https://medium.com/@RocketMeUpCybersecurity/hardware-security-protecting-against-side-channel-and-fault-injection-attacks-a4dc9de8cedc)
+
 [What are Side Channel Attacks and How You Defend Against Them by Wnesecurity](https://wnesecurity.com/what-are-side-channel-attacks-and-how-can-you-defend-against-them/)
 
 ### Development Guidelines
 
 #### Programming Language
 - This is a Go project (v1.24).
-- Go was chosen because of its safety, speed, and subjectively, developer friendly syntax/features
+- Go was chosen because of its safety, speed, and subjectively, developer friendly syntax and features
 - The initial developers had no prior Go knowledge so do expect funky Go code.
 - Download and install go from here https://go.dev/doc/install
+- The code must be formatted according to `gofmt`.
 
 #### Project Structure
 - Each new application (i.e. executable) has its own directory under cmd/<application_name>
@@ -55,11 +60,31 @@ Again, theoretically the techniques that are used for preventing side-channel at
 - Any integration test is under cmd/<application_name>/<test_name>.go (e.g. cmd/antivirus/dashboard_test.go)
 
 #### Testing
-- Each module (file) in internal/<library_name> (business logic) should have unit tests that are meaningful and helpful for finding bugs.
+- Each module (file) in internal/<library_name> (business logic) should have unit tests that are meaningful and helpful for finding potential bugs.
 - Each application in cmd/<application_name> (entry points) should have integration tests that are meaningful and helpful for finding bugs.
 
-#### Configuration
+#### Configuration Settings
+This is the current default config
+```yaml
+# Release Config
+version: 0.1.0
 
-- The config file is under configs/config.yaml
+# General Monitoring Config
+log_path: ./logs/
 
+# CPU Monitoring Related
+cpu_logger: pretty
+cpu_monitoring_interval: 500  # milliseconds
 
+# USB Monitoring Related
+usb_logger: json
+```
+
+**version:** current program version
+**log_path:** the directory where the log files are stored. It value is relative to the project root. Example log file: cpu_load_pretty.log (<monitoring_type>_<format>.log)
+**cpu_logger:** logger type for the cpu logger to use there are currently 2 types:
+- json: json format provided by Go's log/slog package
+- pretty: human readable format
+**cpu_monitoring_interval:** the interval between each CPU load measurement. This value will be used with a machine learning algorithm. Ideally, the value should be tuned to reliably used to detect covert channels that are based on manipulating the CPU consumption while keeping the size of the CPU load data data relatively low. A machine learning algorithm analyzes this data for anomalies.
+**usb_logger:** logger type for the usb traffic monitor to use, there is currently 1 type:
+- json: json format provided by Go's log/slog package
