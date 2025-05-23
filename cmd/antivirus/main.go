@@ -80,7 +80,7 @@ func run(ctx context.Context) error {
 					for _, usb := range usbDetector.NewUSB {
 						for _, partition := range usb.Partitions {
 							for _, mountpoint := range partition.Mountpoints {
-								monitor, err := monitoring.NewMonitor(mountpoint)
+								monitor, err := monitoring.NewUSBMonitor(mountpoint, monitoring.NewFanotifyInitializer())
 								if err != nil {
 									log.Printf("Failed to create monitor for %s: %v", mountpoint, err)
 									continue

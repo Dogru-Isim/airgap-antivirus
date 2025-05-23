@@ -18,6 +18,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
+	"log/slog"
 	"os"
 	"os/exec"
 	"sort"
@@ -50,9 +52,14 @@ type Partition struct {
 	Mountpoints []string
 }
 
-type Monitor struct {
+/*
+@note: the fd field is an int32 for conveniency in testing (cgo is not supported in with go tests)
+this field is converted to a C.int and used with the fanotify interface from C which uses C's default 32 bit integer
+*/
+type USBMonitor struct {
 	Mountpath string
-	fd        C.int
+	fd        int32
+	logger    logging.USBLogger
 }
 
 // func main() {
@@ -62,12 +69,12 @@ type Monitor struct {
 // 		newUSBDetector.DetectNewUSB()
 // 		//fmt.Println("hi")
 // 		newUSBDetector.USBDifferenceChecker()
-// 		// voor elke mountpoint -> monitor.NewMonitor() -> monitor.Start()
+// 		// voor elke mountpoint -> monitor.NewUSBMonitor() -> monitor.Start()
 // 		if newUSBDetector.NewUSB != nil {
 // 			for _, usb := range newUSBDetector.NewUSB {
 // 				for _, partition := range usb.Partitions {
 // 					for _, mountpoint := range partition.Mountpoints {
-// 						monitor, err := NewMonitor(mountpoint)
+// 						monitor, err := NewUSBMonitor(mountpoint)
 // 						if err == nil {
 // 							fmt.Printf("%s is starting\n", monitor.Mountpath)
 // 							go monitor.Start(context.Background())
@@ -179,14 +186,26 @@ func (u *USBDetector) DetectNewUSB() error {
 	return nil
 }
 
-func NewMonitor(mountpath string) (*Monitor, error) {
+type FanotifyInitializer interface {
+	Initialize(flags, event_flags uint) (int32, error)
+}
 
-	fd, err := C.fanotify_init(C.FAN_REPORT_FID|C.FAN_REPORT_DFID_NAME|C.FAN_CLASS_NOTIF|C.FAN_NONBLOCK, C.O_RDONLY)
+type Fanotify struct{}
+
+// Return value is hardcoded because the reason why this returns an interface is to ease unit testing (dependency injection)
+func NewFanotifyInitializer() FanotifyInitializer {
+	return &Fanotify{}
+}
+
+func (f *Fanotify) Initialize(flags, event_flags uint) (int32, error) {
+	fd, err := C.fanotify_init(C.uint(flags), C.uint(event_flags))
 	if fd == -1 {
-		return nil, fmt.Errorf("fanotify_init failed: %v\n", err)
-		//os.Exit(1)
+		return -1, fmt.Errorf("fanotify_init failed: %v", err)
 	}
+	return int32(fd), nil
+}
 
+func NewUSBMonitor(mountpath string, fanotify FanotifyInitializer) (*USBMonitor, error) {
 	fileInfo, err := os.Stat(mountpath)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("%s does not exist!\n", mountpath)
@@ -197,20 +216,33 @@ func NewMonitor(mountpath string) (*Monitor, error) {
 		//os.Exit(1)
 	}
 
-	return &Monitor{
+	fd, err := fanotify.Initialize(
+		C.FAN_REPORT_FID|C.FAN_REPORT_DFID_NAME|C.FAN_CLASS_NOTIF|C.FAN_NONBLOCK,
+		C.O_RDONLY,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("fanotify initialization failed: %w", err)
+	}
+
+	logger, err := logging.NewUSBLogger()
+	if err != nil {
+		return nil, fmt.Errorf("func NewUSBMonitor: error while fetching logger")
+	}
+
+	return &USBMonitor{
 		Mountpath: mountpath,
 		fd:        fd,
+		logger:    logger,
 	}, nil
-
 }
 
-func (m *Monitor) Start(ctx context.Context) {
+func (m *USBMonitor) Start(ctx context.Context) {
 
 	cPath := C.CString(m.Mountpath)
 	defer C.free(unsafe.Pointer(cPath))
 
 	ret, err := C.fanotify_mark(
-		m.fd,
+		C.int(m.fd),
 		C.FAN_MARK_ADD,
 		C.FAN_CREATE|C.FAN_OPEN|C.FAN_MODIFY|
 			C.FAN_MOVED_TO|C.FAN_MOVED_FROM|C.FAN_RENAME|
@@ -230,7 +262,7 @@ func (m *Monitor) Start(ctx context.Context) {
 		foundMountpoint, err := m.MountpointChecker()
 		if err != nil && !foundMountpoint {
 			fmt.Printf("Stopped monitoring on %s\n", m.Mountpath)
-			defer C.close(m.fd)
+			defer C.close(C.int(m.fd))
 			return
 		}
 
@@ -241,40 +273,21 @@ func (m *Monitor) Start(ctx context.Context) {
 		}
 		metadata := (*C.struct_fanotify_event_metadata)(unsafe.Pointer(&buf[0]))
 
-		if metadata.mask&C.FAN_OPEN != 0 {
-			fmt.Printf("[%s][%s]Open detected from PID: %d\n", time.Now().Format("15:04:05"), m.Mountpath, metadata.pid)
+		msg := m.ConvertUSBAction(metadata)
+		if msg != "" {
+			m.logger.Log(slog.LevelInfo,
+				fmt.Sprintf("[%s][%s] %s detected from PID: %d\n",
+					time.Now().Format("15:04:05"),
+					m.Mountpath,
+					msg,
+					metadata.pid),
+			)
 		}
-		if metadata.mask&C.FAN_CREATE != 0 {
-			fmt.Printf("[%s][%s]Create detected from PID: %d\n", time.Now().Format("15:04:05"), m.Mountpath, metadata.pid)
-		}
-		if metadata.mask&C.FAN_DELETE != 0 {
-			fmt.Printf("[%s][%s]Delete detected from PID: %d\n", time.Now().Format("15:04:05"), m.Mountpath, metadata.pid)
-		}
-		if metadata.mask&C.FAN_MOVED_FROM != 0 {
-			fmt.Printf("[%s][%s] Moved FROM detected from PID: %d\n", time.Now().Format("15:04:05"), m.Mountpath, metadata.pid)
-		}
-		if metadata.mask&C.FAN_MOVED_TO != 0 {
-			fmt.Printf("[%s][%s] Moved TO detected from PID: %d\n", time.Now().Format("15:04:05"), m.Mountpath, metadata.pid)
-		}
-		if metadata.mask&C.FAN_RENAME != 0 {
-			fmt.Printf("[%s][%s] Rename detected from PID: %d\n", time.Now().Format("15:04:05"), m.Mountpath, metadata.pid)
-		}
-		if metadata.mask&C.FAN_ATTRIB != 0 {
-			fmt.Printf("[%s][%s]Attribute change detected from PID: %d\n", time.Now().Format("15:04:05"), m.Mountpath, metadata.pid)
-		}
-		if metadata.mask&C.FAN_CLOSE_WRITE != 0 {
-			fmt.Printf("[%s][%s]Write close  detected from PID: %d\n", time.Now().Format("15:04:05"), m.Mountpath, metadata.pid)
-		}
-		if metadata.mask&C.FAN_CLOSE_NOWRITE != 0 {
-			fmt.Printf("[%s][%s]Read close detected from PID: %d\n", time.Now().Format("15:04:05"), m.Mountpath, metadata.pid)
-		}
-		if metadata.mask&C.FAN_MODIFY != 0 {
-			fmt.Printf("[%s][%s]Write detected from PID: %d\n", time.Now().Format("15:04:05"), m.Mountpath, metadata.pid)
-		}
+
 	}
 }
 
-func (m *Monitor) MountpointChecker() (bool, error) {
+func (m *USBMonitor) MountpointChecker() (bool, error) {
 	cmd := exec.Command("lsblk", "-J", "-o", "NAME,MOUNTPOINTS,TRAN")
 	out, err := cmd.Output()
 	if err != nil {
@@ -303,4 +316,55 @@ func (m *Monitor) MountpointChecker() (bool, error) {
 		}
 	}
 	return false, fmt.Errorf("mountpoint not found")
+}
+
+/*
+@brief Convert USB action from the fanotify interface to string values
+
+@param (metadata *C.struct_fanotify_event_metadata): pointer to fanotify event metadata
+
+@return string: converted string value, empty string on failure
+
+@example:
+
+	buf := make([]byte, 4096)
+	n, _ := C.read(C.int(m.fd), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
+	if n <= 0 {
+		continue
+	}
+	metadata := (*C.struct_fanotify_event_metadata)(unsafe.Pointer(&buf[0]))
+
+	actionMsg := monitor.ConvertUSBAction(metadata)
+	if actionMsg != "" {
+		// do logging etc.
+	}
+*/
+func (m *USBMonitor) ConvertUSBAction(metadata *C.struct_fanotify_event_metadata) string {
+	var msg string
+	switch {
+	case metadata.mask&C.FAN_OPEN != 0:
+		msg = "Open"
+	case metadata.mask&C.FAN_CREATE != 0:
+		msg = "Create"
+	case metadata.mask&C.FAN_DELETE != 0:
+		msg = "Delete"
+	case metadata.mask&C.FAN_MOVED_FROM != 0:
+		msg = "Moved FROM"
+	case metadata.mask&C.FAN_MOVED_TO != 0:
+		msg = "Moved TO"
+	case metadata.mask&C.FAN_RENAME != 0:
+		msg = "Rename"
+	case metadata.mask&C.FAN_ATTRIB != 0:
+		msg = "Attribute change"
+	case metadata.mask&C.FAN_CLOSE_WRITE != 0:
+		msg = "Write close"
+	case metadata.mask&C.FAN_CLOSE_NOWRITE != 0:
+		msg = "Read close"
+	case metadata.mask&C.FAN_MODIFY != 0:
+		msg = "Write"
+	default:
+		msg = ""
+	}
+
+	return msg
 }
