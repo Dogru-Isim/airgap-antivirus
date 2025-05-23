@@ -273,9 +273,10 @@ func (m *USBMonitor) Start(ctx context.Context) {
 		}
 		metadata := (*C.struct_fanotify_event_metadata)(unsafe.Pointer(&buf[0]))
 
-		msg := m.convertUSBAction(metadata)
+		msg, suspicionLevel := m.convertUSBAction(metadata)
 		if msg != "" {
 			m.logger.Log(slog.LevelInfo,
+				suspicionLevel,
 				fmt.Sprintf("[%s][%s] %s detected from PID: %d\n",
 					time.Now().Format("15:04:05"),
 					m.Mountpath,
@@ -339,32 +340,43 @@ func (m *USBMonitor) mountpointChecker() (bool, error) {
 		// do logging etc.
 	}
 */
-func (m *USBMonitor) convertUSBAction(metadata *C.struct_fanotify_event_metadata) string {
+func (m *USBMonitor) convertUSBAction(metadata *C.struct_fanotify_event_metadata) (string, logging.SuspicionLevel) {
 	var msg string
+	var suspicionLevel logging.SuspicionLevel
 	switch {
 	case metadata.mask&C.FAN_OPEN != 0:
 		msg = "Open"
+		suspicionLevel = logging.SuspicionLevelNormal
 	case metadata.mask&C.FAN_CREATE != 0:
 		msg = "Create"
+		suspicionLevel = logging.SuspicionLevelSuspicious
 	case metadata.mask&C.FAN_DELETE != 0:
 		msg = "Delete"
+		suspicionLevel = logging.SuspicionLevelSuspicious
 	case metadata.mask&C.FAN_MOVED_FROM != 0:
 		msg = "Moved FROM"
+		suspicionLevel = logging.SuspicionLevelSuspicious
 	case metadata.mask&C.FAN_MOVED_TO != 0:
 		msg = "Moved TO"
+		suspicionLevel = logging.SuspicionLevelSuspicious
 	case metadata.mask&C.FAN_RENAME != 0:
 		msg = "Rename"
+		suspicionLevel = logging.SuspicionLevelSuspicious
 	case metadata.mask&C.FAN_ATTRIB != 0:
 		msg = "Attribute change"
+		suspicionLevel = logging.SuspicionLevelSuspicious
 	case metadata.mask&C.FAN_CLOSE_WRITE != 0:
 		msg = "Write close"
+		suspicionLevel = logging.SuspicionLevelSuspicious
 	case metadata.mask&C.FAN_CLOSE_NOWRITE != 0:
 		msg = "Read close"
+		suspicionLevel = logging.SuspicionLevelNormal
 	case metadata.mask&C.FAN_MODIFY != 0:
 		msg = "Write"
+		suspicionLevel = logging.SuspicionLevelSuspicious
 	default:
 		msg = ""
 	}
 
-	return msg
+	return msg, suspicionLevel
 }
