@@ -259,7 +259,7 @@ func (m *USBMonitor) Start(ctx context.Context) {
 
 	fmt.Printf("Monitoring %s...\n", m.Mountpath)
 	for {
-		foundMountpoint, err := m.MountpointChecker()
+		foundMountpoint, err := m.mountpointChecker()
 		if err != nil && !foundMountpoint {
 			fmt.Printf("Stopped monitoring on %s\n", m.Mountpath)
 			defer C.close(C.int(m.fd))
@@ -273,7 +273,7 @@ func (m *USBMonitor) Start(ctx context.Context) {
 		}
 		metadata := (*C.struct_fanotify_event_metadata)(unsafe.Pointer(&buf[0]))
 
-		msg := m.ConvertUSBAction(metadata)
+		msg := m.convertUSBAction(metadata)
 		if msg != "" {
 			m.logger.Log(slog.LevelInfo,
 				fmt.Sprintf("[%s][%s] %s detected from PID: %d\n",
@@ -287,7 +287,7 @@ func (m *USBMonitor) Start(ctx context.Context) {
 	}
 }
 
-func (m *USBMonitor) MountpointChecker() (bool, error) {
+func (m *USBMonitor) mountpointChecker() (bool, error) {
 	cmd := exec.Command("lsblk", "-J", "-o", "NAME,MOUNTPOINTS,TRAN")
 	out, err := cmd.Output()
 	if err != nil {
@@ -339,7 +339,7 @@ func (m *USBMonitor) MountpointChecker() (bool, error) {
 		// do logging etc.
 	}
 */
-func (m *USBMonitor) ConvertUSBAction(metadata *C.struct_fanotify_event_metadata) string {
+func (m *USBMonitor) convertUSBAction(metadata *C.struct_fanotify_event_metadata) string {
 	var msg string
 	switch {
 	case metadata.mask&C.FAN_OPEN != 0:
