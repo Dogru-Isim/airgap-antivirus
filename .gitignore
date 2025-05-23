@@ -1,4 +1,4 @@
-build/*
+cmd/build/*
 config.yaml
 *.log
 
