@@ -1,7 +1,7 @@
 # Configuration
 BINARY_NAME ?= antivirus
 VERSION ?= 0.1.0
-BUILD_DIR ?= $(shell pwd)/build
+BUILD_DIR ?= $(shell pwd)/build/
 GO_BUILD_FLAGS ?= -v
 GO_TEST_FLAGS ?= -race -cover -v
 GO_LDFLAGS ?= -s -w -X main.version=$(VERSION)
@@ -17,11 +17,12 @@ all: build
 
 .PHONY: run
 run: ## Run the application
+	@echo $(BUILD_DIR)
 	@go build $(GO_BUILD_FLAGS) -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME) ./$(BINARY_NAME) && $(BUILD_DIR)/$(BINARY_NAME) && rm $(BUILD_DIR)/$(BINARY_NAME)
 
 .PHONY: debug
 debug: ## Debug the application with Delve
-	@$(DELVE) debug ./cmd/$(BINARY_NAME)
+	@$(DELVE) debug $(shell pwd)/cmd/build/
 
 .PHONY: test
 test: ## Run unit tests
