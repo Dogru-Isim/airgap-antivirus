@@ -88,3 +88,6 @@ usb_logger: json
 **cpu_monitoring_interval:** the interval between each CPU load measurement. This value will be used with a machine learning algorithm. Ideally, the value should be tuned to reliably used to detect covert channels that are based on manipulating the CPU consumption while keeping the size of the CPU load data data relatively low. A machine learning algorithm analyzes this data for anomalies.
 **usb_logger:** logger type for the usb traffic monitor to use, there is currently 1 type:
 - json: json format provided by Go's log/slog package
+
+#### Documentation
+Refer to the comments in the interface/library under internal/ that you want to use.
