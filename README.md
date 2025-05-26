@@ -81,11 +81,15 @@ usb_logger: json
 ```
 
 **version:** current program version
+
 **log_path:** the directory where the log files are stored. It value is relative to the project root. Example log file: cpu_load_pretty.log (<monitoring_type>_<format>.log)
+
 **cpu_logger:** logger type for the cpu logger to use there are currently 2 types:
 - json: json format provided by Go's log/slog package
 - pretty: human readable format
+
 **cpu_monitoring_interval:** the interval between each CPU load measurement. This value will be used with a machine learning algorithm. Ideally, the value should be tuned to reliably used to detect covert channels that are based on manipulating the CPU consumption while keeping the size of the CPU load data data relatively low. A machine learning algorithm analyzes this data for anomalies.
+  
 **usb_logger:** logger type for the usb traffic monitor to use, there is currently 1 type:
 - json: json format provided by Go's log/slog package
 
