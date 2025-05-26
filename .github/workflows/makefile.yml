@@ -14,8 +14,20 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.24'  # Specify the Go version
+    
+    - name: Install dependencies
+      run: go mod tidy
+
     - name: Create config
       run: mkdir -p /tmp/configs && cp configs/config_template.yaml configs/config.yaml && cp configs/config_template.yaml /tmp/configs/config.yaml # adding /tmp/configs/config.yaml but it's caused by a bug, make test cannot get the config from <project_root>/configs/config.yaml 
+
+    - name: Run linter
+      run: golangci-lint run
+      working-directory: ./cmd
 
     - name: Run tests
       run: make test -f makefile 
@@ -24,3 +36,6 @@ jobs:
     - name: Run build
       run: make build
       working-directory: ./cmd
+    
+    - name: Run tests with coverage
+      run: go test -coverprofile=coverage.out ./...
