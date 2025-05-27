@@ -73,7 +73,7 @@ func run(ctx context.Context) error {
 				return
 			case <-ticker.C:
 				// USB detectie logica
-				err := usbDetector.DetectNewUSB()
+
 				if err := usbDetector.DetectNewUSB(); err != nil {
 					log.Printf("USB detection error: %v", err)
 					continue
