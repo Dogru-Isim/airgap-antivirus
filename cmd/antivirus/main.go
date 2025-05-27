@@ -73,7 +73,11 @@ func run(ctx context.Context) error {
 				return
 			case <-ticker.C:
 				// USB detectie logica
-				usbDetector.DetectNewUSB()
+				err := usbDetector.DetectNewUSB()
+				if err := usbDetector.DetectNewUSB(); err != nil {
+					log.Printf("USB detection error: %v", err)
+					continue
+				}
 				usbDetector.USBDifferenceChecker()
 
 				if usbDetector.NewUSB != nil {
@@ -82,7 +86,7 @@ func run(ctx context.Context) error {
 							for _, mountpoint := range partition.Mountpoints {
 								monitor, err := monitoring.NewUSBMonitor(mountpoint, monitoring.NewFanotifyInitializer())
 								if err != nil {
-									log.Printf("Failed to create monitor for %s: %v", mountpoint, err)
+									log.Printf("Failed to create monitor for %s: %v\n", mountpoint, err)
 									continue
 								}
 								go monitor.Start(context.Background())
