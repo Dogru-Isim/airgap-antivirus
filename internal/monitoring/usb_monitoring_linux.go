@@ -18,7 +18,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -26,6 +25,8 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+
+	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
 )
 
 type USBDetector struct {
@@ -140,6 +141,7 @@ func (u *USBDetector) DetectNewUSB() error {
 	cmd := exec.Command("lsblk", "-J", "-o", "NAME,MOUNTPOINTS,TRAN")
 	out, err := cmd.Output()
 	if err != nil {
+
 		return fmt.Errorf("lsblk command failed: %w\nOutput: %s", err, string(out))
 	}
 
@@ -208,11 +210,10 @@ func (f *Fanotify) Initialize(flags, event_flags uint) (int32, error) {
 func NewUSBMonitor(mountpath string, fanotify FanotifyInitializer) (*USBMonitor, error) {
 	fileInfo, err := os.Stat(mountpath)
 	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("%s does not exist!\n", mountpath)
-		//os.Exit(1)
+		return nil, fmt.Errorf("%s does not exist", mountpath)
 	}
 	if !fileInfo.IsDir() {
-		return nil, fmt.Errorf("%s is Not a directory!\n", mountpath)
+		return nil, fmt.Errorf("%s is Not a directory", mountpath)
 		//os.Exit(1)
 	}
 
