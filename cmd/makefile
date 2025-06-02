@@ -44,7 +44,7 @@ tidy: ## Tidy dependencies
 
 .PHONY: build
 build: ## Build binary
-	@go build $(GO_BUILD_FLAGS) -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME) ./$(BINARY_NAME)
+	@go build $(GO_BUILD_FLAGS) -mod=../vendor/ -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME) ./$(BINARY_NAME)
 
 .PHONY: build-all
 build-all: ## Build for all platforms
