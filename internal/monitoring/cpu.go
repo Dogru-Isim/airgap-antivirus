@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Dogru-Isim/airgap-antivirus/internal/logging"
-	"github.com/shirou/gopsutil/cpu"
+        "github.com/shirou/gopsutil/cpu"
 	"log"
 	"sync"
 	"time"
