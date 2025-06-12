@@ -97,10 +97,11 @@ jobs:
         #echo 'cd "./cmd"' \
         #echo 'make build'
 
-    - name: Build project with Makefile
-      run: |
-        echo 'cd "./cmd"' \
-        echo 'make build'
+    - if: matrix.build-mode == 'manual'
+      - name: Build project with Makefile
+        run: |
+          echo 'cd "./cmd"' \
+          echo 'make build'
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
