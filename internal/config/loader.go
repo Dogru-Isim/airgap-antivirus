@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"github.com/Dogru-Isim/airgap-antivirus/tree/dev/vendor/gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"sync"
