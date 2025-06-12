@@ -90,18 +90,11 @@ jobs:
     # to build your code.
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
-    #- if: matrix.build-mode == 'manual'
-      #shell: bash
-      #run: |
-
-        #echo 'cd "./cmd"' \
-        #echo 'make build'
-
     - if: matrix.build-mode == 'manual'
-      - name: Build project with Makefile
-        run: |
-          echo 'cd "./cmd"' \
-          echo 'make build'
+      shell: bash
+      run: |
+        echo 'cd "./cmd"' \
+        echo 'make build'
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
