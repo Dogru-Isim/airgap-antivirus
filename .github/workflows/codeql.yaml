@@ -91,7 +91,6 @@ jobs:
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
     - name: Build Go Code with go build
-      if: matrix.build-mode == 'manual'
       run: go build -v -mod=vendor -ldflags '-s -w' -o cmd/build ./...
 
     - name: Perform CodeQL Analysis
