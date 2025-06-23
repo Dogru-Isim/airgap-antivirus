@@ -34,6 +34,7 @@ type USBDetector struct {
 	NewUSB       []USB
 	OutputUSB    []USB
 	ExistingUSB  []USB
+	logger       logging.USBLogger
 }
 
 type BlockDevice struct {
@@ -90,14 +91,16 @@ type USBMonitor struct {
 // 	}
 
 // }
-func NewUSBDetector() *USBDetector {
+func NewUSBDetector(logger logging.USBLogger) *USBDetector {
 	return &USBDetector{
 		Blockdevices: make([]BlockDevice, 0),
 		NewUSB:       make([]USB, 0),
 		OutputUSB:    make([]USB, 0),
 		ExistingUSB:  make([]USB, 0),
+		logger:       logger,
 	}
 }
+
 func (u USB) Key() string {
 	// Verzamel alle mountpoints van alle partities
 	var mountpoints []string
@@ -111,8 +114,10 @@ func (u USB) Key() string {
 	hash := hex.EncodeToString(hasher.Sum(nil))
 
 	// Combineer met naam en aantal partities
-	return fmt.Sprintf("%s-%d-%s", u.Name, len(u.Partitions), hash)
+	result := fmt.Sprintf("%s-%d-%s", u.Name, len(u.Partitions), hash)
+	return result
 }
+
 func (u *USBDetector) USBDifferenceChecker() {
 	if u.OutputUSB != nil {
 		if u.ExistingUSB != nil {
@@ -141,8 +146,9 @@ func (u *USBDetector) DetectNewUSB() error {
 	cmd := exec.Command("lsblk", "-J", "-o", "NAME,MOUNTPOINTS,TRAN")
 	out, err := cmd.Output()
 	if err != nil {
-
-		return fmt.Errorf("lsblk command failed: %w\nOutput: %s", err, string(out))
+		errmsg := fmt.Errorf("lsblk command failed: %w\nOutput: %s", err, string(out))
+		u.logger.Log(slog.LevelError, errmsg.Error())
+		return errmsg
 	}
 
 	var result struct {
@@ -150,7 +156,9 @@ func (u *USBDetector) DetectNewUSB() error {
 	}
 
 	if err := json.Unmarshal(out, &result); err != nil {
-		return fmt.Errorf("JSON unmarshal failed: %w\nData: %s", err, string(out))
+		errmsg := fmt.Errorf("JSON unmarshal failed: %w\nData: %s", err, string(out))
+		u.logger.Log(slog.LevelError, errmsg.Error())
+		return errmsg
 	}
 	//fmt.Println(result)
 	u.Blockdevices = result.Blockdevices
@@ -202,18 +210,24 @@ func NewFanotifyInitializer() FanotifyInitializer {
 func (f *Fanotify) Initialize(flags, event_flags uint) (int32, error) {
 	fd, err := C.fanotify_init(C.uint(flags), C.uint(event_flags))
 	if fd == -1 {
-		return -1, fmt.Errorf("fanotify_init failed: %v", err)
+		errmsg := fmt.Errorf("fanotify_init failed: %v", err)
+		//logger.Log(slog.Error, errmsg)
+		return -1, errmsg
 	}
 	return int32(fd), nil
 }
 
-func NewUSBMonitor(mountpath string, fanotify FanotifyInitializer) (*USBMonitor, error) {
+func NewUSBMonitor(mountpath string, fanotify FanotifyInitializer, logger logging.USBLogger) (*USBMonitor, error) {
 	fileInfo, err := os.Stat(mountpath)
 	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("%s does not exist", mountpath)
+		errmsg := fmt.Errorf("%s does not exist", mountpath)
+		logger.Log(slog.LevelError, errmsg.Error())
+		return nil, errmsg
 	}
 	if !fileInfo.IsDir() {
-		return nil, fmt.Errorf("%s is Not a directory", mountpath)
+		errmsg := fmt.Errorf("%s is Not a directory", mountpath)
+		logger.Log(slog.LevelError, errmsg.Error())
+		return nil, errmsg
 		//os.Exit(1)
 	}
 
@@ -222,12 +236,9 @@ func NewUSBMonitor(mountpath string, fanotify FanotifyInitializer) (*USBMonitor,
 		C.O_RDONLY,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("fanotify initialization failed: %w", err)
-	}
-
-	logger, err := logging.NewUSBLogger()
-	if err != nil {
-		return nil, fmt.Errorf("func NewUSBMonitor: error while fetching logger")
+		errmsg := fmt.Errorf("fanotify initialization failed: %w", err)
+		logger.Log(slog.LevelError, errmsg.Error())
+		return nil, errmsg
 	}
 
 	return &USBMonitor{
@@ -254,15 +265,15 @@ func (m *USBMonitor) Start(ctx context.Context) {
 	)
 	if ret == -1 {
 		errno := C.getErrno()
-		fmt.Printf("fanotify_mark failed: %v (errno=%d)\n", err, errno)
+		m.logger.Log(slog.LevelError, fmt.Sprintf("fanotify_mark failed: %v (errno=%d)\n", err, errno))
 		//os.Exit(1)
 	}
 
-	fmt.Printf("Monitoring %s...\n", m.Mountpath)
+	m.logger.Log(slog.LevelInfo, fmt.Sprintf("Monitoring %s...\n", m.Mountpath))
 	for {
 		foundMountpoint, err := m.mountpointChecker()
 		if err != nil && !foundMountpoint {
-			fmt.Printf("Stopped monitoring on %s\n", m.Mountpath)
+			m.logger.Log(slog.LevelInfo, fmt.Sprintf("Stopped monitoring on %s\n", m.Mountpath))
 			defer C.close(C.int(m.fd))
 			return
 		}
@@ -274,16 +285,14 @@ func (m *USBMonitor) Start(ctx context.Context) {
 		}
 		metadata := (*C.struct_fanotify_event_metadata)(unsafe.Pointer(&buf[0]))
 
-		msg, suspicionLevel := m.convertUSBAction(metadata)
+		msg, level := m.convertUSBAction(metadata)
 		if msg != "" {
-			m.logger.Log(slog.LevelInfo,
-				suspicionLevel,
-				fmt.Sprintf("[%s][%s] %s detected from PID: %d\n",
-					time.Now().Format("15:04:05"),
-					m.Mountpath,
-					msg,
-					metadata.pid),
-			)
+			logMessage := fmt.Sprintf("[%s][%s] %s detected from PID: %d",
+				time.Now().Format("15:04:05"),
+				m.Mountpath,
+				msg,
+				metadata.pid)
+			m.logger.Log(level, logMessage)
 		}
 
 	}
@@ -293,14 +302,18 @@ func (m *USBMonitor) mountpointChecker() (bool, error) {
 	cmd := exec.Command("lsblk", "-J", "-o", "NAME,MOUNTPOINTS,TRAN")
 	out, err := cmd.Output()
 	if err != nil {
-		return false, fmt.Errorf("lsblk command failed: %w\nOutput: %s", err, string(out))
+		errmsg := fmt.Errorf("lsblk command failed: %w\nOutput: %s", err, string(out))
+		m.logger.Log(slog.LevelError, errmsg.Error())
+		return false, errmsg
 	}
 
 	var result struct {
 		Blockdevices []BlockDevice `json:"blockdevices"`
 	}
 	if err := json.Unmarshal(out, &result); err != nil {
-		return false, fmt.Errorf("JSON unmarshal failed: %w\nData: %s", err, string(out))
+		errmsg := fmt.Errorf("JSON unmarshal failed: %w\nData: %s", err, string(out))
+		m.logger.Log(slog.LevelError, errmsg.Error())
+		return false, errmsg
 	}
 	//fmt.Println(result)
 
@@ -317,7 +330,9 @@ func (m *USBMonitor) mountpointChecker() (bool, error) {
 			}
 		}
 	}
-	return false, fmt.Errorf("mountpoint not found")
+	errmsg := fmt.Errorf("mountpoint not found")
+	m.logger.Log(slog.LevelError, errmsg.Error())
+	return false, errmsg
 }
 
 /*
@@ -341,43 +356,41 @@ func (m *USBMonitor) mountpointChecker() (bool, error) {
 		// do logging etc.
 	}
 */
-func (m *USBMonitor) convertUSBAction(metadata *C.struct_fanotify_event_metadata) (string, logging.SuspicionLevel) {
+func (m *USBMonitor) convertUSBAction(metadata *C.struct_fanotify_event_metadata) (string, slog.Level) {
 	var msg string
-	var suspicionLevel logging.SuspicionLevel
+	level := slog.LevelInfo
 	switch {
 	case metadata.mask&C.FAN_OPEN != 0:
 		msg = "Open"
-		suspicionLevel = logging.SuspicionLevelNormal
 	case metadata.mask&C.FAN_CREATE != 0:
 		msg = "Create"
-		suspicionLevel = logging.SuspicionLevelSuspicious
+		level = slog.LevelWarn
 	case metadata.mask&C.FAN_DELETE != 0:
 		msg = "Delete"
-		suspicionLevel = logging.SuspicionLevelSuspicious
+		level = slog.LevelWarn
 	case metadata.mask&C.FAN_MOVED_FROM != 0:
 		msg = "Moved FROM"
-		suspicionLevel = logging.SuspicionLevelSuspicious
+		level = slog.LevelWarn
 	case metadata.mask&C.FAN_MOVED_TO != 0:
 		msg = "Moved TO"
-		suspicionLevel = logging.SuspicionLevelSuspicious
+		level = slog.LevelWarn
 	case metadata.mask&C.FAN_RENAME != 0:
 		msg = "Rename"
-		suspicionLevel = logging.SuspicionLevelSuspicious
+		level = slog.LevelWarn
 	case metadata.mask&C.FAN_ATTRIB != 0:
 		msg = "Attribute change"
-		suspicionLevel = logging.SuspicionLevelSuspicious
+		level = slog.LevelWarn
 	case metadata.mask&C.FAN_CLOSE_WRITE != 0:
 		msg = "Write close"
-		suspicionLevel = logging.SuspicionLevelSuspicious
+		level = slog.LevelWarn
 	case metadata.mask&C.FAN_CLOSE_NOWRITE != 0:
 		msg = "Read close"
-		suspicionLevel = logging.SuspicionLevelNormal
 	case metadata.mask&C.FAN_MODIFY != 0:
 		msg = "Write"
-		suspicionLevel = logging.SuspicionLevelSuspicious
+		level = slog.LevelWarn
 	default:
 		msg = ""
 	}
 
-	return msg, suspicionLevel
+	return msg, level
 }
