@@ -92,3 +92,6 @@ usb_logger: json
   
 **usb_logger:** logger type for the usb traffic monitor to use, there is currently 1 type:
 - json: json format provided by Go's log/slog package
+
+#### Documentation
+Refer to the comments in the interface/library under internal/ that you want to use.

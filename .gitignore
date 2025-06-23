@@ -1,4 +1,4 @@
-build/*
+cmd/build/*
 config.yaml
 *.log
 
@@ -11,6 +11,7 @@ config.yaml
 *.dll
 *.so
 *.dylib
+*.swp
 
 # Test binary, built with `go test -c`
 *.test
@@ -19,7 +20,7 @@ config.yaml
 *.out
 
 # Dependency directories (remove the comment below to include it)
-vendor/
+# vendor/
 
 # Go workspace file
 go.work

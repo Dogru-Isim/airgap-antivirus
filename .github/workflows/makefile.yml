@@ -1,5 +1,8 @@
 name: Makefile CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ "dev" ]
@@ -8,16 +11,35 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.24'
+    
+    - name: Install dependencies
+      run: go mod tidy
+
+    - name: Create config
+      run: |
+        mkdir -p /tmp/configs
+        cp configs/config_template.yaml configs/config.yaml
+        cp configs/config_template.yaml /tmp/configs/config.yaml
 
     - name: Run tests
-      run: make test -f cmd/makefile 
-      working-directory: ./
+      run: make test -f makefile
+      working-directory: ./cmd
+
 
     - name: Run build
       run: make build
       working-directory: ./cmd
+
+    - name: Run tests with coverage
+      run: go test -coverprofile=coverage.out ./...
+
