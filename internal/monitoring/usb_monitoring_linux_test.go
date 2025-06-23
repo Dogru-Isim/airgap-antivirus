@@ -73,12 +73,12 @@ func TestNewUSBMonitor_InvalidPaths(t *testing.T) {
 		{
 			name:      "nonexistent path",
 			mountpath: nonExistentPath,
-			wantErr:   nonExistentPath + " does not exist!\n",
+			wantErr:   nonExistentPath + " does not exist",
 		},
 		{
 			name:      "not a directory",
 			mountpath: filePath,
-			wantErr:   filePath + " is Not a directory!\n",
+			wantErr:   filePath + " is Not a directory",
 		},
 	}
 

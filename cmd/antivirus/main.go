@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -47,7 +48,22 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("cpu monitoring init failed: %w", err)
 	}
 
-	usbDetector := monitoring.NewUSBDetector()
+	logFile, err := os.OpenFile(appConfig.LogPath+"usb.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+
+	if err != nil {
+		return fmt.Errorf("could not open log file: %w", err)
+	}
+	defer logFile.Close()
+
+	writer := io.MultiWriter(os.Stdout, logFile)
+	usbLogger, err := logging.NewUSBLogger(
+		logging.USBLoggerWithOutput(writer),
+		logging.USBLoggerWithContext(ctx),
+	)
+	if err != nil {
+		return fmt.Errorf("func NewUSBMonitor: error while fetching logger: %w", err)
+	}
+	usbDetector := monitoring.NewUSBDetector(usbLogger)
 	// Create a channel to signal completion
 	done := make(chan struct{}, 2)
 
@@ -73,16 +89,20 @@ func run(ctx context.Context) error {
 				return
 			case <-ticker.C:
 				// USB detectie logica
-				usbDetector.DetectNewUSB()
+
+				if err := usbDetector.DetectNewUSB(); err != nil {
+					log.Printf("USB detection error: %v", err)
+					continue
+				}
 				usbDetector.USBDifferenceChecker()
 
 				if usbDetector.NewUSB != nil {
 					for _, usb := range usbDetector.NewUSB {
 						for _, partition := range usb.Partitions {
 							for _, mountpoint := range partition.Mountpoints {
-								monitor, err := monitoring.NewUSBMonitor(mountpoint, monitoring.NewFanotifyInitializer())
+								monitor, err := monitoring.NewUSBMonitor(mountpoint, monitoring.NewFanotifyInitializer(), usbLogger)
 								if err != nil {
-									log.Printf("Failed to create monitor for %s: %v", mountpoint, err)
+									log.Printf("Failed to create monitor for %s: %v\n", mountpoint, err)
 									continue
 								}
 								go monitor.Start(context.Background())
