@@ -35,9 +35,11 @@ jobs:
       run: make test -f makefile
       working-directory: ./cmd
 
+
     - name: Run build
       run: make build
       working-directory: ./cmd
-    
+
     - name: Run tests with coverage
       run: go test -coverprofile=coverage.out ./...
+
